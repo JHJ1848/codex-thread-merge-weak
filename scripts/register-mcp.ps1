@@ -11,6 +11,7 @@ param(
 
 $resolvedInstallDir = Get-FullPath -PathValue $(if ($InstallDir) { $InstallDir } else { Get-DefaultInstallDir })
 $serverEntry = Join-Path $resolvedInstallDir "dist\server\index.js"
+$codexCommand = if (Get-Command -Name "codex.cmd" -ErrorAction SilentlyContinue) { "codex.cmd" } else { "codex" }
 
 Assert-Command "codex"
 Assert-Command "node"
@@ -20,7 +21,7 @@ if (-not (Test-Path -LiteralPath $serverEntry)) {
 }
 
 $existingConfig = $false
-& codex mcp get $ServerName --json 1>$null 2>$null
+& cmd.exe /d /c "codex mcp get $ServerName --json 1>nul 2>nul"
 if ($LASTEXITCODE -eq 0) {
   $existingConfig = $true
 }
@@ -31,7 +32,7 @@ if ($existingConfig -and -not $Force) {
 
 if ($existingConfig) {
   Write-Step "Removing existing MCP registration: $ServerName"
-  Invoke-CheckedCommand -FilePath "codex" -Arguments @("mcp", "remove", $ServerName) -FailureMessage "Failed to remove MCP registration"
+  Invoke-CheckedCommand -FilePath $codexCommand -Arguments @("mcp", "remove", $ServerName) -FailureMessage "Failed to remove MCP registration"
 }
 
 $arguments = @("mcp", "add", $ServerName)
@@ -47,9 +48,9 @@ if ($AppServerArgs) {
 $arguments += @("--", "node", $serverEntry)
 
 Write-Step "Registering MCP server: $ServerName"
-Invoke-CheckedCommand -FilePath "codex" -Arguments $arguments -FailureMessage "Failed to register MCP server"
+Invoke-CheckedCommand -FilePath $codexCommand -Arguments $arguments -FailureMessage "Failed to register MCP server"
 
 Write-Step "Verifying MCP registration: $ServerName"
-Invoke-CheckedCommand -FilePath "codex" -Arguments @("mcp", "get", $ServerName, "--json") -FailureMessage "Failed to verify MCP registration"
+Invoke-CheckedCommand -FilePath $codexCommand -Arguments @("mcp", "get", $ServerName, "--json") -FailureMessage "Failed to verify MCP registration"
 
 Write-Host "MCP server ready: $ServerName" -ForegroundColor Green
