@@ -4,7 +4,8 @@ param(
   [string]$RepoUrl = "https://github.com/JHJ1848/codex-thread-merge-weak.git",
   [switch]$SkipBuild,
   [switch]$SkipMcp,
-  [switch]$SkipSkill
+  [switch]$SkipSkill,
+  [switch]$SkipPull
 )
 
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -27,10 +28,12 @@ if (-not (Test-Path -LiteralPath (Join-Path $resolvedInstallDir ".git"))) {
 Assert-GitRemoteMatches -RepoDir $resolvedInstallDir -ExpectedUrl $RepoUrl
 Assert-CleanWorkingTree -RepoDir $resolvedInstallDir
 
-Write-Step "Updating repository"
-Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "fetch", "origin", "main", "--prune") -FailureMessage "git fetch failed"
-Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "checkout", "main") -FailureMessage "git checkout main failed"
-Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "pull", "--ff-only", "origin", "main") -FailureMessage "git pull failed"
+if (-not $SkipPull) {
+  Write-Step "Updating repository"
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "fetch", "origin", "main", "--prune") -FailureMessage "git fetch failed"
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "checkout", "main") -FailureMessage "git checkout main failed"
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "pull", "--ff-only", "origin", "main") -FailureMessage "git pull failed"
+}
 
 Write-Step "Installing dependencies"
 Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "install") -FailureMessage "npm install failed"

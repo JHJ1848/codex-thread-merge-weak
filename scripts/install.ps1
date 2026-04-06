@@ -84,4 +84,4 @@ Write-Host ""
 Write-Host "Install complete." -ForegroundColor Green
 Write-Host "InstallDir: $resolvedInstallDir"
 Write-Host "Current commit: $currentCommit"
-Write-Host "In Codex you can now say: 归并当前项目会话"
+Write-Host "In Codex you can now say: merge the current project sessions"
