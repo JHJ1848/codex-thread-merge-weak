@@ -2,47 +2,21 @@
 param(
   [string]$InstallDir,
   [string]$ServerName = "codex-thread-merge",
+  [string]$AppServerCommand,
+  [string]$AppServerArgs,
   [switch]$Force
 )
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-$OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+. (Join-Path $PSScriptRoot "common.ps1")
 
-function Write-Step {
-  param([string]$Text)
-  Write-Host "==> $Text" -ForegroundColor Cyan
-}
-
-function Fail {
-  param([string]$Text)
-  throw $Text
-}
-
-function Assert-Command {
-  param([string]$Name)
-  if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-    Fail "Missing required command: $Name"
-  }
-}
-
-function Get-DefaultInstallDir {
-  if ($PSScriptRoot) {
-    return (Split-Path -Parent $PSScriptRoot)
-  }
-
-  return (Join-Path $HOME "tools\codex-thread-merge-weak")
-}
-
-$resolvedInstallDir = [System.IO.Path]::GetFullPath($(if ($InstallDir) { $InstallDir } else { Get-DefaultInstallDir }))
+$resolvedInstallDir = Get-FullPath -PathValue $(if ($InstallDir) { $InstallDir } else { Get-DefaultInstallDir })
 $serverEntry = Join-Path $resolvedInstallDir "dist\server\index.js"
 
 Assert-Command "codex"
 Assert-Command "node"
 
 if (-not (Test-Path -LiteralPath $serverEntry)) {
-  Fail "Missing MCP server entry: $serverEntry. Run npm run build first."
+  Fail "Built MCP server entry not found. Run npm run build first: $serverEntry"
 }
 
 $existingConfig = $false
@@ -52,27 +26,30 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 if ($existingConfig -and -not $Force) {
-  Fail "MCP config '$ServerName' already exists. Re-run with -Force to replace it."
+  Fail "MCP server '$ServerName' already exists. Re-run with -Force to replace it."
 }
 
 if ($existingConfig) {
-  Write-Step "Removing existing MCP config: $ServerName"
-  & codex mcp remove $ServerName
-  if ($LASTEXITCODE -ne 0) {
-    Fail "Failed to remove MCP config: $ServerName"
-  }
+  Write-Step "Removing existing MCP registration: $ServerName"
+  Invoke-CheckedCommand -FilePath "codex" -Arguments @("mcp", "remove", $ServerName) -FailureMessage "Failed to remove MCP registration"
 }
 
-Write-Step "Registering MCP config: $ServerName"
-& codex mcp add $ServerName -- node $serverEntry
-if ($LASTEXITCODE -ne 0) {
-  Fail "Failed to register MCP config: $ServerName"
+$arguments = @("mcp", "add", $ServerName)
+
+if ($AppServerCommand) {
+  $arguments += @("--env", "CODEX_APP_SERVER_COMMAND=$AppServerCommand")
 }
 
-Write-Step "Validating MCP config: $ServerName"
-& codex mcp get $ServerName --json
-if ($LASTEXITCODE -ne 0) {
-  Fail "Failed to validate MCP config: $ServerName"
+if ($AppServerArgs) {
+  $arguments += @("--env", "CODEX_APP_SERVER_ARGS=$AppServerArgs")
 }
 
-Write-Host "MCP registered: $ServerName" -ForegroundColor Green
+$arguments += @("--", "node", $serverEntry)
+
+Write-Step "Registering MCP server: $ServerName"
+Invoke-CheckedCommand -FilePath "codex" -Arguments $arguments -FailureMessage "Failed to register MCP server"
+
+Write-Step "Verifying MCP registration: $ServerName"
+Invoke-CheckedCommand -FilePath "codex" -Arguments @("mcp", "get", $ServerName, "--json") -FailureMessage "Failed to verify MCP registration"
+
+Write-Host "MCP server ready: $ServerName" -ForegroundColor Green

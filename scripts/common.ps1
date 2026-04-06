@@ -5,6 +5,9 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $PSDefaultParameterValues["Out-File:Encoding"] = "utf8"
 $PSDefaultParameterValues["Set-Content:Encoding"] = "utf8"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+  $PSNativeCommandUseErrorActionPreference = $false
+}
 
 function Write-Step {
   param([Parameter(Mandatory = $true)][string]$Message)

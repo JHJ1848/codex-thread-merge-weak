@@ -8,78 +8,9 @@ param(
   [switch]$Force
 )
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-$OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+. (Join-Path $PSScriptRoot "common.ps1")
 
-function Write-Step {
-  param([string]$Text)
-  Write-Host "==> $Text" -ForegroundColor Cyan
-}
-
-function Fail {
-  param([string]$Text)
-  throw $Text
-}
-
-function Assert-Command {
-  param([string]$Name)
-  if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-    Fail "Missing required command: $Name"
-  }
-}
-
-function Get-RemoteUrl {
-  param([string]$RepoDir)
-
-  $output = & git -C $RepoDir remote get-url origin 2>$null
-  if ($LASTEXITCODE -ne 0) {
-    return $null
-  }
-
-  return ($output | Select-Object -First 1).Trim()
-}
-
-function Assert-CleanWorkingTree {
-  param([string]$RepoDir)
-
-  $status = & git -C $RepoDir status --porcelain
-  if ($LASTEXITCODE -ne 0) {
-    Fail "Failed to read working tree status: $RepoDir"
-  }
-
-  if ($status) {
-    Fail "Install directory has uncommitted changes: $RepoDir"
-  }
-}
-
-function Checkout-MainBranch {
-  param([string]$RepoDir)
-
-  & git -C $RepoDir fetch origin main --prune
-  if ($LASTEXITCODE -ne 0) {
-    Fail "Failed to fetch origin/main."
-  }
-
-  & git -C $RepoDir show-ref --verify --quiet refs/heads/main
-  if ($LASTEXITCODE -eq 0) {
-    & git -C $RepoDir checkout main
-  } else {
-    & git -C $RepoDir checkout -B main origin/main
-  }
-
-  if ($LASTEXITCODE -ne 0) {
-    Fail "Failed to switch to the main branch."
-  }
-
-  & git -C $RepoDir pull --ff-only origin main
-  if ($LASTEXITCODE -ne 0) {
-    Fail "Failed to update the main branch."
-  }
-}
-
-$resolvedInstallDir = [System.IO.Path]::GetFullPath($InstallDir)
+$resolvedInstallDir = Get-FullPath -PathValue $InstallDir
 $registerScript = Join-Path $resolvedInstallDir "scripts\register-mcp.ps1"
 $installSkillScript = Join-Path $resolvedInstallDir "scripts\install-skill.ps1"
 
@@ -93,54 +24,46 @@ if (-not $SkipMcp) {
 if (Test-Path -LiteralPath $resolvedInstallDir) {
   if (-not (Test-Path -LiteralPath (Join-Path $resolvedInstallDir ".git"))) {
     if (-not $Force) {
-      Fail "Install directory already exists but is not a Git repository: $resolvedInstallDir"
+      Fail "Install directory exists but is not a git repository. Re-run with -Force to replace it: $resolvedInstallDir"
     }
 
-    Write-Step "Removing non-git install directory"
+    Write-Step "Replacing non-git install directory"
     Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
   }
 }
 
 if (-not (Test-Path -LiteralPath $resolvedInstallDir)) {
-  Write-Step "Cloning repository into $resolvedInstallDir"
+  Write-Step "Cloning repository to $resolvedInstallDir"
   New-Item -ItemType Directory -Path (Split-Path -Parent $resolvedInstallDir) -Force | Out-Null
-  & git clone --branch main --single-branch $RepoUrl $resolvedInstallDir
-  if ($LASTEXITCODE -ne 0) {
-    Fail "Failed to clone the repository."
-  }
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("clone", $RepoUrl, $resolvedInstallDir) -FailureMessage "git clone failed"
 } else {
-  $existingRemote = Get-RemoteUrl -RepoDir $resolvedInstallDir
-  if ($existingRemote -ne $RepoUrl) {
-    Fail "Unexpected remote URL. Expected: $RepoUrl Actual: $existingRemote"
-  }
-
+  Assert-GitRemoteMatches -RepoDir $resolvedInstallDir -ExpectedUrl $RepoUrl
   Assert-CleanWorkingTree -RepoDir $resolvedInstallDir
   Write-Step "Updating existing repository"
-  Checkout-MainBranch -RepoDir $resolvedInstallDir
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "fetch", "origin", "main", "--prune") -FailureMessage "git fetch failed"
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "checkout", "main") -FailureMessage "git checkout main failed"
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "pull", "--ff-only", "origin", "main") -FailureMessage "git pull failed"
 }
 
 $currentCommit = (& git -C $resolvedInstallDir rev-parse HEAD | Select-Object -First 1).Trim()
 if ($LASTEXITCODE -ne 0) {
-  Fail "Failed to read the current commit."
+  Fail "Failed to resolve current commit"
 }
 
 Write-Step "Installing dependencies"
-& npm --prefix $resolvedInstallDir install
-if ($LASTEXITCODE -ne 0) {
-  Fail "npm install failed."
-}
+Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "install") -FailureMessage "npm install failed"
+
+Write-Step "Running type checks"
+Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "run", "check") -FailureMessage "npm run check failed"
 
 if (-not $SkipBuild) {
   Write-Step "Building project"
-  & npm --prefix $resolvedInstallDir run build
-  if ($LASTEXITCODE -ne 0) {
-    Fail "npm run build failed."
-  }
+  Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "run", "build") -FailureMessage "npm run build failed"
 }
 
 if (-not $SkipMcp) {
   if (-not (Test-Path -LiteralPath $registerScript)) {
-    Fail "Missing script: $registerScript"
+    Fail "register-mcp.ps1 not found: $registerScript"
   }
 
   Write-Step "Registering MCP server"
@@ -149,7 +72,7 @@ if (-not $SkipMcp) {
 
 if (-not $SkipSkill) {
   if (-not (Test-Path -LiteralPath $installSkillScript)) {
-    Fail "Missing script: $installSkillScript"
+    Fail "install-skill.ps1 not found: $installSkillScript"
   }
 
   Write-Step "Installing skill"
@@ -157,7 +80,7 @@ if (-not $SkipSkill) {
 }
 
 Write-Host ""
-Write-Host "Installation complete." -ForegroundColor Green
-Write-Host "Install directory: $resolvedInstallDir"
+Write-Host "Install complete." -ForegroundColor Green
+Write-Host "InstallDir: $resolvedInstallDir"
 Write-Host "Current commit: $currentCommit"
-Write-Host "In Codex, try: merge project sessions"
+Write-Host "In Codex you can now say: 归并当前项目会话"

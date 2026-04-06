@@ -24,20 +24,12 @@ Write-Step "Checking target repository"
 Invoke-CheckedCommand -FilePath "gh" -Arguments @("repo", "view", "JHJ1848/codex-thread-merge-weak", "--json", "name,url") -FailureMessage "Target GitHub repository is not accessible"
 
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot ".git"))) {
-  if (-not $Bootstrap) {
-    Fail "Current directory is not a Git repository. Re-run with -Bootstrap for the first publish."
-  }
-
   Write-Step "Initializing git repository"
   Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $repoRoot, "init", "-b", $Branch) -FailureMessage "git init failed"
 }
 
 $originUrl = Get-GitRemoteUrl -RepoDir $repoRoot
 if (-not $originUrl) {
-  if (-not $Bootstrap) {
-    Fail "origin remote is missing. Re-run with -Bootstrap for the first publish."
-  }
-
   Write-Step "Adding origin remote"
   Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $repoRoot, "remote", "add", "origin", $RemoteUrl) -FailureMessage "Failed to add origin remote"
 } else {
@@ -66,15 +58,9 @@ Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $repoRoot, "add", "-A")
 
 & git -C $repoRoot diff --cached --quiet
 switch ($LASTEXITCODE) {
-  0 {
-    $hasStagedChanges = $false
-  }
-  1 {
-    $hasStagedChanges = $true
-  }
-  default {
-    Fail "Failed to inspect staged changes"
-  }
+  0 { $hasStagedChanges = $false }
+  1 { $hasStagedChanges = $true }
+  default { Fail "Failed to inspect staged changes" }
 }
 
 if ($hasStagedChanges) {
@@ -90,8 +76,8 @@ if ($hasStagedChanges) {
 }
 
 $hasUpstream = $false
-& git -C $repoRoot rev-parse --abbrev-ref --symbolic-full-name "@{u}" *> $null
-if ($LASTEXITCODE -eq 0) {
+$branchRemote = & git -C $repoRoot config --get "branch.$Branch.remote" 2>$null
+if ($LASTEXITCODE -eq 0 -and $branchRemote) {
   $hasUpstream = $true
 }
 
