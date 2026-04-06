@@ -8,18 +8,82 @@ param(
   [switch]$Force
 )
 
-. (Join-Path $PSScriptRoot "common.ps1")
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+function Write-Step {
+  param([Parameter(Mandatory = $true)][string]$Message)
+
+  Write-Host "==> $Message" -ForegroundColor Cyan
+}
+
+function Fail {
+  param([Parameter(Mandatory = $true)][string]$Message)
+
+  throw $Message
+}
+
+function Assert-Command {
+  param([Parameter(Mandatory = $true)][string]$Name)
+
+  if (-not (Get-Command -Name $Name -ErrorAction SilentlyContinue)) {
+    Fail "Required command not found: $Name"
+  }
+}
+
+function Invoke-CheckedCommand {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [string[]]$Arguments = @(),
+    [Parameter(Mandatory = $true)][string]$FailureMessage
+  )
+
+  & $FilePath @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    Fail "$FailureMessage (exit code $LASTEXITCODE)"
+  }
+}
+
+function Get-FullPath {
+  param([Parameter(Mandatory = $true)][string]$PathValue)
+
+  return [System.IO.Path]::GetFullPath($PathValue)
+}
+
+function Get-GitRemoteUrl {
+  param([Parameter(Mandatory = $true)][string]$RepoDir)
+
+  $output = & git -C $RepoDir config --get remote.origin.url 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    return $null
+  }
+
+  return ($output | Select-Object -First 1).Trim()
+}
+
+function Assert-CleanWorkingTree {
+  param([Parameter(Mandatory = $true)][string]$RepoDir)
+
+  $status = & git -C $RepoDir status --porcelain
+  if ($LASTEXITCODE -ne 0) {
+    Fail "Failed to inspect working tree: $RepoDir"
+  }
+
+  if ($status) {
+    Fail "Install directory has uncommitted changes: $RepoDir"
+  }
+}
 
 $resolvedInstallDir = Get-FullPath -PathValue $InstallDir
-$registerScript = Join-Path $resolvedInstallDir "scripts\register-mcp.ps1"
-$installSkillScript = Join-Path $resolvedInstallDir "scripts\install-skill.ps1"
+$updateScript = Join-Path $resolvedInstallDir "scripts\update.ps1"
+$powershellPath = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+if (-not $powershellPath) {
+  $powershellPath = "powershell.exe"
+}
 
 Assert-Command "git"
-Assert-Command "node"
-Assert-Command "npm"
-if (-not $SkipMcp) {
-  Assert-Command "codex"
-}
 
 if (Test-Path -LiteralPath $resolvedInstallDir) {
   if (-not (Test-Path -LiteralPath (Join-Path $resolvedInstallDir ".git"))) {
@@ -27,61 +91,55 @@ if (Test-Path -LiteralPath $resolvedInstallDir) {
       Fail "Install directory exists but is not a git repository. Re-run with -Force to replace it: $resolvedInstallDir"
     }
 
-    Write-Step "Replacing non-git install directory"
+    Write-Step "Removing non-git install directory"
     Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
   }
 }
 
 if (-not (Test-Path -LiteralPath $resolvedInstallDir)) {
+  $parentDir = Split-Path -Parent $resolvedInstallDir
+  if ($parentDir) {
+    New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
+  }
+
   Write-Step "Cloning repository to $resolvedInstallDir"
-  New-Item -ItemType Directory -Path (Split-Path -Parent $resolvedInstallDir) -Force | Out-Null
-  Invoke-CheckedCommand -FilePath "git" -Arguments @("clone", $RepoUrl, $resolvedInstallDir) -FailureMessage "git clone failed"
+  Invoke-CheckedCommand -FilePath "git" -Arguments @("clone", "--branch", "main", "--single-branch", $RepoUrl, $resolvedInstallDir) -FailureMessage "git clone failed"
 } else {
-  Assert-GitRemoteMatches -RepoDir $resolvedInstallDir -ExpectedUrl $RepoUrl
+  $existingRemote = Get-GitRemoteUrl -RepoDir $resolvedInstallDir
+  if ($existingRemote -ne $RepoUrl) {
+    Fail "Install directory remote does not match. Expected: $RepoUrl Actual: $existingRemote"
+  }
+
   Assert-CleanWorkingTree -RepoDir $resolvedInstallDir
+
   Write-Step "Updating existing repository"
   Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "fetch", "origin", "main", "--prune") -FailureMessage "git fetch failed"
   Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "checkout", "main") -FailureMessage "git checkout main failed"
   Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "pull", "--ff-only", "origin", "main") -FailureMessage "git pull failed"
 }
 
-$currentCommitOutput = & git -C $resolvedInstallDir rev-parse HEAD 2>$null
-$currentCommit = ($currentCommitOutput | Select-Object -First 1).Trim()
-if (-not $currentCommit) {
-  Fail "Failed to resolve current commit"
+if (-not (Test-Path -LiteralPath $updateScript)) {
+  Fail "update.ps1 not found after clone: $updateScript"
 }
 
-Write-Step "Installing dependencies"
-Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "install") -FailureMessage "npm install failed"
+$updateArgs = @(
+  "-ExecutionPolicy", "Bypass",
+  "-File", $updateScript,
+  "-InstallDir", $resolvedInstallDir,
+  "-SkipPull"
+)
 
-Write-Step "Running type checks"
-Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "run", "check") -FailureMessage "npm run check failed"
-
-if (-not $SkipBuild) {
-  Write-Step "Building project"
-  Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "run", "build") -FailureMessage "npm run build failed"
+if ($SkipBuild) {
+  $updateArgs += "-SkipBuild"
+}
+if ($SkipMcp) {
+  $updateArgs += "-SkipMcp"
+}
+if ($SkipSkill) {
+  $updateArgs += "-SkipSkill"
 }
 
-if (-not $SkipMcp) {
-  if (-not (Test-Path -LiteralPath $registerScript)) {
-    Fail "register-mcp.ps1 not found: $registerScript"
-  }
+Write-Step "Running local update script"
+Invoke-CheckedCommand -FilePath $powershellPath -Arguments $updateArgs -FailureMessage "install follow-up update failed"
 
-  Write-Step "Registering MCP server"
-  & $registerScript -InstallDir $resolvedInstallDir -Force
-}
-
-if (-not $SkipSkill) {
-  if (-not (Test-Path -LiteralPath $installSkillScript)) {
-    Fail "install-skill.ps1 not found: $installSkillScript"
-  }
-
-  Write-Step "Installing skill"
-  & $installSkillScript -InstallDir $resolvedInstallDir -Force
-}
-
-Write-Host ""
-Write-Host "Install complete." -ForegroundColor Green
-Write-Host "InstallDir: $resolvedInstallDir"
-Write-Host "Current commit: $currentCommit"
-Write-Host "In Codex you can now say: merge the current project sessions"
+Write-Host "Install complete: $resolvedInstallDir" -ForegroundColor Green
