@@ -51,6 +51,8 @@ powershell .\scripts\publish.ps1 -Message "chore: update"
 https://github.com/JHJ1848/codex-thread-merge-weak.git
 ```
 
+如果你在 Windows PowerShell 里手动执行 MCP 命令时发现 `codex` 包装脚本行为异常，直接改用 `codex.cmd`。
+
 ## 详细说明
 
 详细安装、更新、发布和 MCP 工具说明见 [docs/usage.md](docs/usage.md)。

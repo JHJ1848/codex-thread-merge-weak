@@ -138,6 +138,13 @@ codex mcp list --json
 codex mcp get codex-thread-merge --json
 ```
 
+如果你在 Windows PowerShell 里遇到 `codex` 包装脚本异常，可直接改用：
+
+```powershell
+codex.cmd mcp list --json
+codex.cmd mcp get codex-thread-merge --json
+```
+
 ## 6. 工具说明
 
 - `preview_project_threads`
