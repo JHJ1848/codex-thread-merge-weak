@@ -45,8 +45,9 @@ if (-not (Test-Path -LiteralPath $resolvedInstallDir)) {
   Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $resolvedInstallDir, "pull", "--ff-only", "origin", "main") -FailureMessage "git pull failed"
 }
 
-$currentCommit = (& git -C $resolvedInstallDir rev-parse HEAD | Select-Object -First 1).Trim()
-if ($LASTEXITCODE -ne 0) {
+$currentCommitOutput = & git -C $resolvedInstallDir rev-parse HEAD 2>$null
+$currentCommit = ($currentCommitOutput | Select-Object -First 1).Trim()
+if (-not $currentCommit) {
   Fail "Failed to resolve current commit"
 }
 
