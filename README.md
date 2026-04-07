@@ -1,22 +1,33 @@
 # codex-thread-merge-weak
 
-本项目提供一个本地 `STDIO MCP server + skill`，用于把同一项目下的多个 Codex 会话归并为新的 canonical thread，并同步根目录 `MEMORY.md`。
+本项目提供一个本地 `STDIO MCP server + skill`，用于把同一项目下的多个 Codex 会话归并为新的 canonical thread，并同步项目根目录 `MEMORY.md`。
 
-## 新设备安装
+## 使用方法
 
-先确认本机已经安装 `git`、`Node.js 18+`、`npm`、`codex`，然后执行：
+### 环境要求
 
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 | iex"
-```
+先确认本机已经安装：
 
-如果你当前在 `cmd.exe`，可以直接执行：
+- `git`
+- `Node.js 18+`
+- `npm`
+- `codex`
+
+### 一键安装
+
+如果你当前在 `cmd.exe`，直接执行：
 
 ```cmd
 curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\ctm-install.cmd"
 ```
 
-更安全的做法是先下载再查看：
+如果你当前在 PowerShell，直接执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 | iex"
+```
+
+更安全的做法是先下载、检查，再执行：
 
 ```powershell
 iwr https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 -OutFile .\install.ps1
@@ -24,37 +35,240 @@ Get-Content .\install.ps1
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装完成后，在 Codex 里说：
+### 安装后如何使用
+
+安装完成后，在任意项目目录里打开 Codex，直接说这些话即可：
 
 - `归并当前项目会话`
+- `把这个项目的多个 Codex 会话合成主会话`
 - `同步当前项目的 canonical thread`
 
-## 日常更新
+如果你想验证 MCP 是否已经注册成功，可以执行：
+
+```cmd
+codex.cmd mcp get codex-thread-merge --json
+```
+
+### 日常更新
+
+如果是已安装过的设备，执行：
+
+```cmd
+%USERPROFILE%\tools\codex-thread-merge-weak\scripts\update.cmd
+```
+
+或者在仓库内执行：
 
 ```powershell
 powershell .\scripts\update.ps1
 ```
 
-或在 `cmd.exe` 里执行：
+## 项目解决什么问题
 
-```cmd
-scripts\update.cmd
+当同一个项目在 Codex 中产生多个会话时，历史上下文会分散在多个 thread 里，后续继续开发很容易出现这些问题：
+
+- 新会话不知道旧会话已经做过什么
+- `MEMORY.md` 失真或长期不更新
+- 项目事实、待办、风险分散在不同 thread 中
+- 需要人工复制粘贴多个会话内容，成本高且容易漏信息
+
+本项目的目标就是把这件事变成一个本地可调用的 MCP 能力：
+
+1. 发现当前项目相关的 Codex threads
+2. 预览候选 thread
+3. 把多个 thread 归并成新的 canonical thread
+4. 刷新项目根目录 `MEMORY.md`
+5. 可选 compact/重命名旧 thread
+
+## 整体流程
+
+从用户说一句“归并当前项目会话”开始，整体流程如下：
+
+1. Codex 识别到已安装的 skill：`codex-thread-merge-weak`
+2. skill 引导 Codex 调用本地 MCP 工具，而不是让模型自己硬编归并规则
+3. MCP server 根据当前 `cwd` 发现同项目相关 thread
+4. 工具先返回候选列表供预览
+5. 工具读取候选 thread 内容并做归并
+6. 生成一个新的 canonical thread
+7. 按结果刷新项目根目录 `MEMORY.md`
+8. 可选 compact 旧 thread，并给旧 thread 名称追加 merged 标记
+
+这个项目的核心思路是：把“线程发现、归并、记忆刷新”做成稳定的本地工具链，而不是把这些规则全塞进 prompt。
+
+## 实现方式
+
+### 1. skill 层
+
+项目内的 skill 源目录是：
+
+```text
+skills/codex-thread-merge-weak
 ```
 
-安装和更新都走同一套 staged 安装事务：
+它的作用不是实现业务逻辑，而是定义什么时候应该调用这个 MCP，以及优先调用哪些工具。项目内 skill 源目录始终保留；安装脚本只是在你确认后，额外复制到全局 `~/.codex/skills/codex-thread-merge-weak`。
 
-- 先在临时目录拉取或复用本地快照
-- 执行 `npm install --include=dev`
-- 执行 `npm run check`
-- 按需执行 `npm run build` 和 `npm test`
-- 成功后再切换正式安装目录
-- 如果切换后的后续步骤失败，会自动回滚到之前可用的版本
+### 2. MCP server 层
 
-同步 skill 时，项目内 `.\skills\codex-thread-merge-weak` 始终作为来源保留；脚本会用英文提示你是否额外安装到全局 `~/.codex/skills/codex-thread-merge-weak`。
+本地 MCP server 是一个 Node.js `stdio` 服务，入口是：
 
-如果已安装目录里只有安装生成物差异，例如 `package-lock.json`、`dist/`、`node_modules/`，脚本会把它们视为可自动刷新，不再因为这些脏文件直接报错。若检测到源码、脚本、文档等人工改动，则仍会停止，避免覆盖本地修改。
+```text
+dist/server/index.js
+```
 
-## 发布到 GitHub
+它向 Codex 暴露的能力主要包括：
+
+- `preview_project_threads`
+- `merge_project_threads`
+- `refresh_project_memory`
+
+这些工具负责把“读取 thread、做归并、生成 memory”收口在一个稳定接口里。
+
+### 3. 线程发现层
+
+线程发现逻辑负责按当前工作目录 `cwd` 识别同项目相关的会话。它不是简单按名称匹配，而是结合项目路径和 thread 元数据做候选筛选，减少误归并。
+
+### 4. 线程归并引擎
+
+线程归并引擎负责：
+
+- 提取每个 thread 的关键事实
+- 做去重和冲突归并
+- 生成新的 canonical thread 内容
+- 保留必要的 warning/conflict 信息
+
+对应代码主要在：
+
+- `src/thread-merge-engine`
+- `src/thread-discovery`
+- `src/server`
+
+### 5. MEMORY.md 写入层
+
+归并结果不会只停留在新 thread 内，还会写回项目根目录 `MEMORY.md`。这样后续任何新会话都可以先从 `MEMORY.md` 获得项目的长期事实，而不是依赖模型临时记忆。
+
+对应代码主要在：
+
+- `src/memory-writer`
+
+## 安装与更新脚本的实现方式
+
+当前安装器不是“直接在正式目录边拉边改”，而是 staged transaction 模式。
+
+### 1. staged install
+
+安装和更新都会先在临时目录完成这些动作：
+
+1. 拉取远程仓库，或在必要时回退到本地已安装快照
+2. 执行 `npm install --include=dev`
+3. 执行 `npm run check`
+4. 按需执行 `npm run build`
+5. 按需执行 `npm test`
+
+只有临时目录里的候选版本全部验证通过，才会切换正式安装目录。
+
+### 2. 幂等性
+
+脚本现在按“重复执行应该尽量是安全 no-op 或安全刷新”的原则实现：
+
+- 如果 MCP 配置已经是目标配置，则直接跳过
+- 如果全局 skill 内容没有变化，则直接跳过
+- 如果安装目录里只有安装生成物差异，例如：
+  - `package-lock.json`
+  - `dist/`
+  - `node_modules/`
+  脚本会把它们视为可自动刷新状态，而不是直接报错
+
+如果检测到源码、脚本、文档等人工修改，脚本会停止，避免覆盖本地手工改动。
+
+### 3. 回滚
+
+安装事务的关键点是“失败后不要把本地安装搞坏”。
+
+因此当前流程是：
+
+1. 先准备 staged 版本
+2. 切换正式目录前给旧版本做备份
+3. 切换正式目录
+4. 再执行 MCP 注册和全局 skill 安装
+5. 如果切换后的后续步骤失败，则回滚到之前的安装目录
+
+MCP 注册和 skill 安装本身也做了回滚处理：
+
+- `register-mcp.ps1`
+  - 已是目标配置则 no-op
+  - 替换失败则恢复旧 MCP 配置
+- `install-skill.ps1`
+  - 先复制到临时目录
+  - 校验 `SKILL.md`
+  - 再原子替换目标 skill 目录
+  - 失败则恢复旧 skill
+
+### 4. 进度提示
+
+`cmd` 入口不是静默执行，而是给出分阶段提示，包括：
+
+- bootstrap 下载
+- staged repository 准备
+- 依赖安装和校验
+- 正式目录切换
+- MCP 刷新
+- skill 刷新
+
+在支持 ANSI 的终端里会带彩色文本进度条；不支持时也会退化成普通文本输出。
+
+详细日志默认写到：
+
+```text
+%TEMP%\codex-thread-merge-weak-install.log
+```
+
+## 目录结构
+
+主要目录如下：
+
+```text
+src/
+  server/                 MCP server 入口与工具编排
+  thread-discovery/       项目 thread 发现逻辑
+  thread-merge-engine/    thread 归并引擎
+  memory-writer/          MEMORY.md 生成与写入
+  codex-client/           与 Codex / app server 交互的客户端封装
+
+scripts/
+  install.ps1             主安装事务
+  update.ps1              更新入口，复用安装事务
+  register-mcp.ps1        MCP 注册与回滚
+  install-skill.ps1       全局 skill 安装与回滚
+  *.cmd                   Windows cmd 包装器
+
+skills/
+  codex-thread-merge-weak/
+    SKILL.md              skill 定义
+
+docs/
+  usage.md                安装、更新、发布和工具说明
+```
+
+## 开发与发布
+
+### 本地检查
+
+```powershell
+npm run check
+npm test
+npm run build
+```
+
+### 本地脚本
+
+```cmd
+scripts\install.cmd
+scripts\update.cmd
+scripts\register-mcp.cmd -Force
+scripts\install-skill.cmd -Force
+```
+
+### 发布到 GitHub
 
 首次发布：
 
@@ -68,22 +282,15 @@ powershell .\scripts\publish.ps1 -Bootstrap -Message "chore: initial publish"
 powershell .\scripts\publish.ps1 -Message "chore: update"
 ```
 
-发布脚本会严格校验远程仓库是否为：
+发布脚本会严格校验远程仓库必须是：
 
 ```text
 https://github.com/JHJ1848/codex-thread-merge-weak.git
 ```
 
-如果你在 Windows PowerShell 里手动执行 MCP 命令时发现 `codex` 包装脚本行为异常，直接改用 `codex.cmd`。
+## 相关说明
 
-仓库里的脚本同时提供了 `cmd` 包装器：
-
-- `scripts\install.cmd`
-- `scripts\update.cmd`
-- `scripts\publish.cmd`
-- `scripts\register-mcp.cmd`
-- `scripts\install-skill.cmd`
-
-## 详细说明
-
-详细安装、更新、发布和 MCP 工具说明见 [docs/usage.md](docs/usage.md)。
+- 如果你在 Windows PowerShell 里执行 `codex` 遇到包装脚本异常，优先改用 `codex.cmd`
+- 项目内 `skills/codex-thread-merge-weak` 是唯一 skill 源目录
+- 全局 skill 只是从项目源目录复制出的副本
+- 更详细的命令和工具参数说明见 [docs/usage.md](docs/usage.md)
