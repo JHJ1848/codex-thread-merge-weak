@@ -40,7 +40,7 @@ Write-Step "Ensuring branch is $Branch"
 Invoke-CheckedCommand -FilePath "git" -Arguments @("-C", $repoRoot, "checkout", "-B", $Branch) -FailureMessage "Failed to switch branch"
 
 Write-Step "Installing dependencies"
-Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $repoRoot, "install") -FailureMessage "npm install failed"
+Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $repoRoot, "install", "--include=dev") -FailureMessage "npm install failed"
 
 if (-not $SkipChecks) {
   Write-Step "Running type checks"

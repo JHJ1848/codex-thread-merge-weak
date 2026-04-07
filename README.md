@@ -29,7 +29,9 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 powershell .\scripts\update.ps1
 ```
 
-更新脚本会执行 `git pull --ff-only`、`npm install`、`npm run check`、`npm run build`、`npm test`，然后重新同步 MCP 和 skill。
+更新脚本会执行 `git pull --ff-only`、`npm install --include=dev`、`npm run check`、`npm run build`、`npm test`，然后重新同步 MCP 和 skill。
+
+同步 skill 时，项目内 `.\skills\codex-thread-merge-weak` 始终作为来源保留；脚本会用英文提示你是否额外安装到全局 `~/.codex/skills/codex-thread-merge-weak`。
 
 ## 发布到 GitHub
 

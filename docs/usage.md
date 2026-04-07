@@ -34,11 +34,12 @@ $HOME\tools\codex-thread-merge-weak
 安装脚本会自动完成：
 
 1. 克隆或更新仓库
-2. 执行 `npm install`
+2. 执行 `npm install --include=dev`
 3. 执行 `npm run check`
 4. 执行 `npm run build`
 4. 注册 MCP server
-5. 安装 skill 到 `~/.codex/skills/codex-thread-merge-weak`
+5. 保留项目内 `./skills/codex-thread-merge-weak` 作为 skill 来源目录
+6. 用英文提示是否将 skill 安装到全局 `~/.codex/skills/codex-thread-merge-weak`
 
 可选参数：
 
@@ -47,6 +48,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 `
   -InstallDir "D:\tools\codex-thread-merge-weak" `
   -SkipBuild `
   -SkipMcp `
+  -InstallGlobalSkill true `
   -SkipSkill
 ```
 
@@ -61,12 +63,12 @@ powershell .\scripts\update.ps1
 该脚本会执行：
 
 1. `git pull --ff-only`
-2. `npm install`
+2. `npm install --include=dev`
 3. `npm run check`
 4. `npm run build`
 5. `npm test`
 6. 重新注册 MCP
-7. 重新同步 skill
+7. 重新同步 skill，并在未显式传参时询问是否安装到全局目录
 
 ## 3. 发布到 GitHub
 
@@ -89,7 +91,7 @@ powershell .\scripts\publish.ps1 -Message "feat: update merge workflow"
 
 发布脚本默认会执行：
 
-1. `npm install`
+1. `npm install --include=dev`
 2. `npm run check`
 3. `npm run build`
 4. `npm test`
@@ -115,6 +117,18 @@ powershell .\scripts\register-mcp.ps1 -Force
 
 ```powershell
 powershell .\scripts\install-skill.ps1 -Force
+```
+
+如果你想跳过提示并直接安装到全局：
+
+```powershell
+powershell .\scripts\install-skill.ps1 -Force -InstallGlobalSkill true
+```
+
+如果你想跳过全局安装：
+
+```powershell
+powershell .\scripts\install-skill.ps1 -InstallGlobalSkill false
 ```
 
 ## 5. 注册 MCP Server

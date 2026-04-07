@@ -5,6 +5,7 @@ param(
   [switch]$SkipBuild,
   [switch]$SkipMcp,
   [switch]$SkipSkill,
+  [string]$InstallGlobalSkill = "",
   [switch]$SkipPull
 )
 
@@ -36,7 +37,7 @@ if (-not $SkipPull) {
 }
 
 Write-Step "Installing dependencies"
-Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "install") -FailureMessage "npm install failed"
+Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "install", "--include=dev") -FailureMessage "npm install failed"
 
 Write-Step "Running type checks"
 Invoke-CheckedCommand -FilePath "npm" -Arguments @("--prefix", $resolvedInstallDir, "run", "check") -FailureMessage "npm run check failed"
@@ -56,7 +57,11 @@ if (-not $SkipMcp) {
 
 if (-not $SkipSkill) {
   Write-Step "Refreshing skill files"
-  & $installSkillScript -InstallDir $resolvedInstallDir -Force
+  if ($InstallGlobalSkill) {
+    & $installSkillScript -InstallDir $resolvedInstallDir -Force -InstallGlobalSkill $InstallGlobalSkill
+  } else {
+    & $installSkillScript -InstallDir $resolvedInstallDir -Force
+  }
 }
 
 Write-Host "Update complete: $resolvedInstallDir" -ForegroundColor Green

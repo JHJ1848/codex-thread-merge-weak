@@ -5,6 +5,7 @@ param(
   [switch]$SkipBuild,
   [switch]$SkipMcp,
   [switch]$SkipSkill,
+  [string]$InstallGlobalSkill = "",
   [switch]$Force
 )
 
@@ -137,6 +138,10 @@ if ($SkipMcp) {
 }
 if ($SkipSkill) {
   $updateArgs += "-SkipSkill"
+}
+if ($InstallGlobalSkill) {
+  $updateArgs += "-InstallGlobalSkill"
+  $updateArgs += $InstallGlobalSkill
 }
 
 Write-Step "Running local update script"
