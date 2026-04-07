@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ
 如果你当前使用的是 `cmd.exe`，直接执行：
 
 ```cmd
-curl.exe -fsSL -o "%TEMP%\codex-thread-merge-weak-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\codex-thread-merge-weak-install.cmd"
+curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\ctm-install.cmd"
 ```
 
 更安全的方式是先下载、检查，再运行：
@@ -40,12 +40,20 @@ $HOME\tools\codex-thread-merge-weak
 安装脚本会自动完成：
 
 1. 克隆或更新仓库
-2. 执行 `npm install --include=dev`
-3. 执行 `npm run check`
-4. 执行 `npm run build`
-4. 注册 MCP server
-5. 保留项目内 `./skills/codex-thread-merge-weak` 作为 skill 来源目录
-6. 用英文提示是否将 skill 安装到全局 `~/.codex/skills/codex-thread-merge-weak`
+2. 在临时目录执行 `npm install --include=dev`
+3. 在临时目录执行 `npm run check`
+4. 按需在临时目录执行 `npm run build` 和 `npm test`
+5. 成功后再切换正式安装目录
+6. 注册 MCP server
+7. 保留项目内 `./skills/codex-thread-merge-weak` 作为 skill 来源目录
+8. 用英文提示是否将 skill 安装到全局 `~/.codex/skills/codex-thread-merge-weak`
+
+额外说明：
+
+- 安装和更新会把详细日志写到 `%TEMP%\codex-thread-merge-weak-install.log`
+- 如果安装目录里只有安装生成物差异，例如 `package-lock.json`、`dist/`、`node_modules/`，脚本会自动视为可刷新状态
+- 如果检测到源码、脚本、文档等人工修改，脚本会停止，避免覆盖本地改动
+- 正式安装目录切换后如果后续注册 MCP 或安装 skill 失败，会自动回滚到之前可用的目录
 
 可选参数：
 

@@ -13,7 +13,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ
 如果你当前在 `cmd.exe`，可以直接执行：
 
 ```cmd
-curl.exe -fsSL -o "%TEMP%\codex-thread-merge-weak-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\codex-thread-merge-weak-install.cmd"
+curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\ctm-install.cmd"
 ```
 
 更安全的做法是先下载再查看：
@@ -41,9 +41,18 @@ powershell .\scripts\update.ps1
 scripts\update.cmd
 ```
 
-更新脚本会执行 `git pull --ff-only`、`npm install --include=dev`、`npm run check`、`npm run build`、`npm test`，然后重新同步 MCP 和 skill。
+安装和更新都走同一套 staged 安装事务：
+
+- 先在临时目录拉取或复用本地快照
+- 执行 `npm install --include=dev`
+- 执行 `npm run check`
+- 按需执行 `npm run build` 和 `npm test`
+- 成功后再切换正式安装目录
+- 如果切换后的后续步骤失败，会自动回滚到之前可用的版本
 
 同步 skill 时，项目内 `.\skills\codex-thread-merge-weak` 始终作为来源保留；脚本会用英文提示你是否额外安装到全局 `~/.codex/skills/codex-thread-merge-weak`。
+
+如果已安装目录里只有安装生成物差异，例如 `package-lock.json`、`dist/`、`node_modules/`，脚本会把它们视为可自动刷新，不再因为这些脏文件直接报错。若检测到源码、脚本、文档等人工改动，则仍会停止，避免覆盖本地修改。
 
 ## 发布到 GitHub
 
