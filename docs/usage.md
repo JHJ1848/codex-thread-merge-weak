@@ -17,6 +17,12 @@
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 | iex"
 ```
 
+如果你当前使用的是 `cmd.exe`，直接执行：
+
+```cmd
+curl.exe -fsSL -o "%TEMP%\codex-thread-merge-weak-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\codex-thread-merge-weak-install.cmd"
+```
+
 更安全的方式是先下载、检查，再运行：
 
 ```powershell
@@ -58,6 +64,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 `
 
 ```powershell
 powershell .\scripts\update.ps1
+```
+
+或者在 `cmd.exe` 里执行：
+
+```cmd
+scripts\update.cmd
 ```
 
 该脚本会执行：
@@ -113,10 +125,18 @@ powershell .\scripts\publish.ps1 -Message "chore: quick publish" -SkipChecks
 powershell .\scripts\register-mcp.ps1 -Force
 ```
 
+```cmd
+scripts\register-mcp.cmd -Force
+```
+
 只重新安装 skill：
 
 ```powershell
 powershell .\scripts\install-skill.ps1 -Force
+```
+
+```cmd
+scripts\install-skill.cmd -Force
 ```
 
 如果你想跳过提示并直接安装到全局：
@@ -125,10 +145,18 @@ powershell .\scripts\install-skill.ps1 -Force
 powershell .\scripts\install-skill.ps1 -Force -InstallGlobalSkill true
 ```
 
+```cmd
+scripts\install-skill.cmd -Force -InstallGlobalSkill true
+```
+
 如果你想跳过全局安装：
 
 ```powershell
 powershell .\scripts\install-skill.ps1 -InstallGlobalSkill false
+```
+
+```cmd
+scripts\install-skill.cmd -InstallGlobalSkill false
 ```
 
 ## 5. 注册 MCP Server

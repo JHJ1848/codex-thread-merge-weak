@@ -10,6 +10,12 @@
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 | iex"
 ```
 
+如果你当前在 `cmd.exe`，可以直接执行：
+
+```cmd
+curl.exe -fsSL -o "%TEMP%\codex-thread-merge-weak-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\codex-thread-merge-weak-install.cmd"
+```
+
 更安全的做法是先下载再查看：
 
 ```powershell
@@ -27,6 +33,12 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 ```powershell
 powershell .\scripts\update.ps1
+```
+
+或在 `cmd.exe` 里执行：
+
+```cmd
+scripts\update.cmd
 ```
 
 更新脚本会执行 `git pull --ff-only`、`npm install --include=dev`、`npm run check`、`npm run build`、`npm test`，然后重新同步 MCP 和 skill。
@@ -54,6 +66,14 @@ https://github.com/JHJ1848/codex-thread-merge-weak.git
 ```
 
 如果你在 Windows PowerShell 里手动执行 MCP 命令时发现 `codex` 包装脚本行为异常，直接改用 `codex.cmd`。
+
+仓库里的脚本同时提供了 `cmd` 包装器：
+
+- `scripts\install.cmd`
+- `scripts\update.cmd`
+- `scripts\publish.cmd`
+- `scripts\register-mcp.cmd`
+- `scripts\install-skill.cmd`
 
 ## 详细说明
 
