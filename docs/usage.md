@@ -11,24 +11,36 @@
 - `npm`
 - `codex`
 
-推荐直接执行远程安装脚本：
+推荐直接执行远程安装脚本（最短命令，适合 PowerShell）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 | iex"
+powershell -ep bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.ps1|iex"
 ```
 
-如果你当前使用的是 `cmd.exe`，直接执行：
+如果你当前使用的是 `cmd.exe`，用这个更稳：
 
 ```cmd
-curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\ctm-install.cmd"
+curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-i.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.cmd && call "%TEMP%\ctm-i.cmd"
 ```
 
 更安全的方式是先下载、检查，再运行：
 
 ```powershell
-iwr https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 -OutFile .\install.ps1
-Get-Content .\install.ps1
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+iwr https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.ps1 -OutFile .\i.ps1
+Get-Content .\i.ps1
+powershell -ExecutionPolicy Bypass -File .\i.ps1
+```
+
+旧报错根因说明：早期远程安装链路单独下载 `install.ps1`，而该脚本会 `.` 引入同目录 `common.ps1`。当 `common.ps1` 未一并下载时，会触发 `Get-FullPath`、`Set-InstallLogPath`、`Write-Phase` 等命令未识别错误。新入口通过 bootstrap 先准备依赖后再执行安装。
+
+如果已经在仓库根目录，也可以直接执行：
+
+```cmd
+i.cmd
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\i.ps1
 ```
 
 默认安装目录：

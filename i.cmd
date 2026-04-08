@@ -4,59 +4,38 @@ setlocal EnableExtensions EnableDelayedExpansion
 for /F %%e in ('echo prompt $E^| cmd') do set "ESC=%%e"
 
 set "SCRIPT_DIR=%~dp0"
-set "INSTALL_PS1=%SCRIPT_DIR%install.ps1"
-set "COMMON_PS1=%SCRIPT_DIR%common.ps1"
-set "LOCAL_BOOTSTRAP_PS1=%SCRIPT_DIR%..\i.ps1"
-set "LOCAL_BOOTSTRAP_CMD=%SCRIPT_DIR%..\i.cmd"
+set "LOCAL_BOOTSTRAP_PS1=%SCRIPT_DIR%i.ps1"
 set "REMOTE_BOOTSTRAP_PS1=https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.ps1"
 set "BOOTSTRAP_PS1="
 set "DOWNLOADED_BOOTSTRAP_PS1="
 
-call :print active "[#.....] Preparing installer bootstrap"
-
-if exist "%INSTALL_PS1%" if exist "%COMMON_PS1%" (
-  call :print done "[##....] Using bundled PowerShell installer"
-  call :print done "[###...] Bootstrap ready"
-  call :print active "[###...] Starting transactional installer"
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%INSTALL_PS1%" %*
-  exit /b !ERRORLEVEL!
-)
-
-if exist "%INSTALL_PS1%" if not exist "%COMMON_PS1%" (
-  call :print warn "[##....] Local installer dependencies incomplete, switching to bootstrap"
-)
+call :print active "[#....] Preparing bootstrap entry"
 
 if exist "%LOCAL_BOOTSTRAP_PS1%" (
   set "BOOTSTRAP_PS1=%LOCAL_BOOTSTRAP_PS1%"
-  call :print done "[##....] Using local bootstrap i.ps1"
-) else if exist "%LOCAL_BOOTSTRAP_CMD%" (
-  call :print done "[##....] Using local bootstrap i.cmd"
-  call :print done "[###...] Bootstrap ready"
-  call :print active "[###...] Starting transactional installer"
-  call "%LOCAL_BOOTSTRAP_CMD%" %*
-  exit /b !ERRORLEVEL!
+  call :print done "[##...] Using local i.ps1"
 ) else (
   set "BOOTSTRAP_PS1=%TEMP%\ctm-bootstrap-%RANDOM%%RANDOM%.ps1"
   set "DOWNLOADED_BOOTSTRAP_PS1=!BOOTSTRAP_PS1!"
   where curl.exe >nul 2>nul
   if not errorlevel 1 (
-    call :print active "[##....] Downloading bootstrap with curl"
+    call :print active "[##...] Downloading i.ps1 with curl"
     curl.exe --retry 3 --retry-delay 1 -fsSL -o "!BOOTSTRAP_PS1!" "%REMOTE_BOOTSTRAP_PS1%"
     if errorlevel 1 (
       del /q "!BOOTSTRAP_PS1!" >nul 2>nul
-      call :print warn "[##....] curl failed, switching to PowerShell download"
+      call :print warn "[##...] curl failed, switching to PowerShell"
       powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri '%REMOTE_BOOTSTRAP_PS1%' -OutFile '!BOOTSTRAP_PS1!'"
       if errorlevel 1 exit /b !ERRORLEVEL!
     )
   ) else (
-    call :print warn "[##....] curl.exe not found, using PowerShell download"
+    call :print warn "[##...] curl.exe not found, using PowerShell"
     powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri '%REMOTE_BOOTSTRAP_PS1%' -OutFile '!BOOTSTRAP_PS1!'"
     if errorlevel 1 exit /b !ERRORLEVEL!
   )
 )
 
-call :print done "[###...] Bootstrap ready"
-call :print active "[###...] Starting transactional installer"
+call :print done "[###..] Bootstrap ready"
+call :print active "[###..] Starting installer"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%BOOTSTRAP_PS1%" %*
 set "EXIT_CODE=%ERRORLEVEL%"
 

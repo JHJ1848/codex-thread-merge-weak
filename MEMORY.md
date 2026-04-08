@@ -137,6 +137,12 @@
 
 ### 当前脚本结构
 
+- `i.ps1`
+  - 仓库根远程 bootstrap 入口
+  - 会先准备 `install.ps1 + common.ps1`，再进入正式安装事务
+- `i.cmd`
+  - 仓库根 `cmd.exe` 短入口
+  - 优先使用本地 `i.ps1`，否则下载远程 `i.ps1`
 - `scripts/install.ps1`
   - 主安装事务入口
 - `scripts/update.ps1`
@@ -178,7 +184,14 @@
 
 ### cmd 体验
 
-- `scripts/install.cmd` 是 `cmd.exe` 一键安装入口。
+- 仓库根 `i.cmd` 是更短的 `cmd.exe` 用户侧入口。
+- `scripts/install.cmd` 保留为兼容入口：
+  - 本地脚本完整时直接执行 `scripts/install.ps1`
+  - 否则转发到根目录或远程 `i.ps1`
+- 推荐入口区分终端：
+  - PowerShell 优先走 `powershell -ep bypass -c "irm .../i.ps1|iex"`
+  - `cmd.exe` 优先走远程 `i.cmd`
+- 远程 bootstrap 不再单独下载 `install.ps1`，而是先准备 `install.ps1 + common.ps1`，避免函数未识别报错。
 - 当前有分阶段提示：
   - bootstrap 准备
   - staged repository 准备
@@ -222,8 +235,8 @@
 - 全局 skill 只是复制副本：
   - `~/.codex/skills/codex-thread-merge-weak`
 - 推荐安装方式：
-  - `cmd.exe` 下执行远程 `install.cmd`
-  - PowerShell 下执行远程 `install.ps1`
+  - PowerShell 优先执行远程 `i.ps1`
+  - `cmd.exe` 优先执行远程 `i.cmd`
 - 日常使用方式：
   - 在目标项目目录里对 Codex 说“归并当前项目会话”等自然语言
 

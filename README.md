@@ -15,24 +15,36 @@
 
 ### 一键安装
 
-如果你当前在 `cmd.exe`，直接执行：
-
-```cmd
-curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-install.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.cmd && call "%TEMP%\ctm-install.cmd"
-```
-
-如果你当前在 PowerShell，直接执行：
+推荐（最短命令，适合 PowerShell）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 | iex"
+powershell -ep bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.ps1|iex"
+```
+
+如果你当前在 `cmd.exe`，用这个更稳：
+
+```cmd
+curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-i.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.cmd && call "%TEMP%\ctm-i.cmd"
 ```
 
 更安全的做法是先下载、检查，再执行：
 
 ```powershell
-iwr https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 -OutFile .\install.ps1
-Get-Content .\install.ps1
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+iwr https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.ps1 -OutFile .\i.ps1
+Get-Content .\i.ps1
+powershell -ExecutionPolicy Bypass -File .\i.ps1
+```
+
+旧报错根因说明：早期远程链路只下载了 `install.ps1`，但脚本运行时还依赖同目录 `common.ps1`，因此会出现 `Get-FullPath`、`Write-Phase` 等函数未识别报错。新入口会先准备完整 bootstrap 依赖，再进入安装事务。
+
+如果你已经在仓库根目录，也可以直接执行：
+
+```cmd
+i.cmd
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\i.ps1
 ```
 
 ### 安装后如何使用
