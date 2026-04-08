@@ -223,7 +223,9 @@ export class CodexAppServerClient {
       toJsonObject({
         cwd: params.cwd ?? null,
         experimentalRawEvents: false,
-        persistExtendedHistory: true,
+        // Some Codex hosts still gate richer persisted history behind experimental APIs.
+        // Keep canonical thread creation on the stable path so merge works broadly.
+        persistExtendedHistory: false,
       }),
     );
     const response = asObject(raw);

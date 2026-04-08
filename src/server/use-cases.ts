@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { CodexAppServerClient } from "../codex-client/client.js";
+import { appendMergeRecord } from "../memory-writer/writeMergeRecord.js";
 import { discoverProjectThreads } from "../thread-discovery/discovery.js";
 import type {
   MergeThreadsOptions,
@@ -39,6 +40,7 @@ export interface MergeProjectThreadsOutput {
   mergedThreadIds: string[];
   skippedThreadIds: string[];
   memoryPath?: string;
+  recordLogPath?: string;
   warnings: string[];
   mergedState: MergedProjectState;
 }
@@ -113,8 +115,9 @@ export class MergeProjectThreadsUseCaseImpl implements MergeProjectThreadsUseCas
   ): Promise<MergeProjectThreadsOutput> {
     const projectRoot = resolveProjectRoot(input.cwd);
     const client = this.deps.createCodexClient(projectRoot);
+    let resolved: ResolvedMergeInput | undefined;
     try {
-      const resolved = await resolveMergeInput(client, projectRoot, {
+      resolved = await resolveMergeInput(client, projectRoot, {
         includeArchived: input.includeArchived ?? false,
       });
       const warnings = [...resolved.warnings];
@@ -176,7 +179,7 @@ export class MergeProjectThreadsUseCaseImpl implements MergeProjectThreadsUseCas
         }
       }
 
-      return {
+      const mergeOutput: MergeProjectThreadsOutput = {
         canonicalThreadId: canonicalThread.id,
         canonicalThreadName,
         mergedThreadIds,
@@ -185,6 +188,81 @@ export class MergeProjectThreadsUseCaseImpl implements MergeProjectThreadsUseCas
         warnings,
         mergedState: resolved.mergedState,
       };
+
+      try {
+        mergeOutput.recordLogPath = (
+          await appendMergeRecord({
+            projectRoot: resolved.projectRoot,
+            projectName: resolved.mergedState.projectName,
+            resultStatus: "success",
+            recordedAt: new Date().toISOString(),
+            selectionRule: resolved.selectionRule,
+            canonicalThreadId: canonicalThread.id,
+            canonicalThreadName,
+            memoryPath,
+            candidateSessions: resolved.candidateThreads.map((candidate) => {
+              const sourceThread = resolved?.sourceThreads.find(
+                (thread) => thread.threadId === candidate.threadId,
+              );
+              return {
+                threadId: candidate.threadId,
+                name: candidate.name,
+                updatedAt: candidate.updatedAt,
+                turnCount: sourceThread?.turns.length,
+              };
+            }),
+            mergedThreadIds,
+            skippedThreadIds: resolved.skippedThreadIds,
+            warnings,
+            options: {
+              includeArchived: input.includeArchived,
+              writeMemory: input.writeMemory,
+              compactOldThreads: input.compactOldThreads,
+              renameOldThreads: input.renameOldThreads,
+            },
+          })
+        ).path;
+      } catch (error) {
+        warnings.push(`record.log write failed: ${toErrorMessage(error)}`);
+      }
+
+      return mergeOutput;
+    } catch (error) {
+      try {
+        await appendMergeRecord({
+          projectRoot,
+          projectName: path.basename(projectRoot) || "project",
+          resultStatus: "failed",
+          recordedAt: new Date().toISOString(),
+          error: toErrorMessage(error),
+          selectionRule: resolved?.selectionRule,
+          candidateSessions:
+            resolved?.candidateThreads.map((candidate) => {
+              const sourceThread = resolved?.sourceThreads.find(
+                (thread) => thread.threadId === candidate.threadId,
+              );
+              return {
+                threadId: candidate.threadId,
+                name: candidate.name,
+                updatedAt: candidate.updatedAt,
+                turnCount: sourceThread?.turns.length,
+              };
+            }) ?? [],
+          mergedThreadIds: [],
+          skippedThreadIds: resolved?.skippedThreadIds ?? [],
+          warnings: resolved?.warnings ?? [toErrorMessage(error)],
+          options: {
+            includeArchived: input.includeArchived,
+            writeMemory: input.writeMemory,
+            compactOldThreads: input.compactOldThreads,
+            renameOldThreads: input.renameOldThreads,
+          },
+        });
+      } catch (recordError) {
+        console.warn(`record.log write failed: ${toErrorMessage(recordError)}`);
+      }
+
+      throw error;
     } finally {
       client.close();
     }

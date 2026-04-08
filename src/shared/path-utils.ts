@@ -1,11 +1,26 @@
 import path from "node:path";
 
+function normalizeWindowsExtendedPathPrefix(input: string): string {
+  if (!input.startsWith("\\\\?\\")) {
+    return input;
+  }
+
+  // \\?\UNC\server\share\path -> \\server\share\path
+  if (input.startsWith("\\\\?\\UNC\\")) {
+    return `\\\\${input.slice("\\\\?\\UNC\\".length)}`;
+  }
+
+  // \\?\C:\path -> C:\path
+  return input.slice("\\\\?\\".length);
+}
+
 function normalizeSeparators(input: string): string {
   return input.replace(/\\/g, "/");
 }
 
 export function normalizePathForCompare(inputPath: string): string {
-  const normalized = normalizeSeparators(path.resolve(inputPath));
+  const resolvedPath = path.resolve(normalizeWindowsExtendedPathPrefix(inputPath));
+  const normalized = normalizeSeparators(resolvedPath);
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 

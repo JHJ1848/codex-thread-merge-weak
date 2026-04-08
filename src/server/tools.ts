@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   TOOL_MERGE_PROJECT_THREADS,
   TOOL_PREVIEW_PROJECT_THREADS,
@@ -7,7 +8,7 @@ import {
 export interface McpToolDefinition {
   name: string;
   description: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: Record<string, z.ZodTypeAny>;
 }
 
 export function getToolDefinitions(): McpToolDefinition[] {
@@ -17,20 +18,14 @@ export function getToolDefinitions(): McpToolDefinition[] {
       description:
         "Discover project-related Codex threads for the current cwd before merge.",
       inputSchema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          cwd: {
-            type: "string",
-            description:
-              "Optional project root override. Defaults to the server process cwd.",
-          },
-          include_archived: {
-            type: "boolean",
-            description: "Whether archived threads should be included.",
-            default: false,
-          },
-        },
+        cwd: z
+          .string()
+          .optional()
+          .describe("Optional project root override. Defaults to the server process cwd."),
+        include_archived: z
+          .boolean()
+          .optional()
+          .describe("Whether archived threads should be included."),
       },
     },
     {
@@ -38,35 +33,26 @@ export function getToolDefinitions(): McpToolDefinition[] {
       description:
         "Merge project threads into one canonical thread and optionally update MEMORY.md.",
       inputSchema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          cwd: {
-            type: "string",
-            description:
-              "Optional project root override. Defaults to the server process cwd.",
-          },
-          include_archived: {
-            type: "boolean",
-            description: "Whether archived threads should be included.",
-            default: false,
-          },
-          write_memory: {
-            type: "boolean",
-            description: "Whether to update project MEMORY.md.",
-            default: true,
-          },
-          compact_old_threads: {
-            type: "boolean",
-            description: "Whether merged source threads should be compacted.",
-            default: true,
-          },
-          rename_old_threads: {
-            type: "boolean",
-            description: "Whether merged source threads should get [Merged] tag.",
-            default: true,
-          },
-        },
+        cwd: z
+          .string()
+          .optional()
+          .describe("Optional project root override. Defaults to the server process cwd."),
+        include_archived: z
+          .boolean()
+          .optional()
+          .describe("Whether archived threads should be included."),
+        write_memory: z
+          .boolean()
+          .optional()
+          .describe("Whether to update project MEMORY.md."),
+        compact_old_threads: z
+          .boolean()
+          .optional()
+          .describe("Whether merged source threads should be compacted."),
+        rename_old_threads: z
+          .boolean()
+          .optional()
+          .describe("Whether merged source threads should get [Merged] tag."),
       },
     },
     {
@@ -74,15 +60,10 @@ export function getToolDefinitions(): McpToolDefinition[] {
       description:
         "Refresh only MEMORY.md from current project merged state without creating a new canonical thread.",
       inputSchema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          cwd: {
-            type: "string",
-            description:
-              "Optional project root override. Defaults to the server process cwd.",
-          },
-        },
+        cwd: z
+          .string()
+          .optional()
+          .describe("Optional project root override. Defaults to the server process cwd."),
       },
     },
   ];

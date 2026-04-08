@@ -27,6 +27,11 @@ powershell -ep bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-th
 curl.exe -fsSL --retry 3 --retry-delay 1 -o "%TEMP%\ctm-i.cmd" https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.cmd && call "%TEMP%\ctm-i.cmd"
 ```
 
+这条 `cmd` 命令同时支持首次安装和后续更新：
+
+- 未安装时：自动拉取并安装
+- 已安装时：自动进入更新流程，刷新到最新版本
+
 更安全的做法是先下载、检查，再执行：
 
 ```powershell
@@ -107,6 +112,8 @@ powershell .\scripts\update.ps1
 
 这个项目的核心思路是：把“线程发现、归并、记忆刷新”做成稳定的本地工具链，而不是把这些规则全塞进 prompt。
 
+补充说明：`memory/record.log` 仅用于 merge 过程的审计留痕，不替代 `MEMORY.md`。项目长期事实仍以 `MEMORY.md` 为准。
+
 ## 实现方式
 
 ### 1. skill 层
@@ -157,6 +164,7 @@ dist/server/index.js
 ### 5. MEMORY.md 写入层
 
 归并结果不会只停留在新 thread 内，还会写回项目根目录 `MEMORY.md`。这样后续任何新会话都可以先从 `MEMORY.md` 获得项目的长期事实，而不是依赖模型临时记忆。
+`memory/record.log` 是附加审计日志，不参与事实主存储，也不改变 `MEMORY.md` 的权威性。
 
 对应代码主要在：
 

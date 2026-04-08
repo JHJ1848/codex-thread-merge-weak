@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   parseMergeProjectThreadsInput,
   parsePreviewProjectThreadsInput,
@@ -76,7 +78,19 @@ export async function startServer(): Promise<void> {
   await server.connect(transport);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isMainModule(
+  moduleUrl: string = import.meta.url,
+  argvEntry: string | undefined = process.argv[1],
+): boolean {
+  if (!argvEntry) {
+    return false;
+  }
+
+  const modulePath = fileURLToPath(moduleUrl);
+  return path.resolve(modulePath) === path.resolve(argvEntry);
+}
+
+if (isMainModule()) {
   startServer().catch((error) => {
     const message = error instanceof Error ? error.stack ?? error.message : String(error);
     process.stderr.write(`${message}\n`);
