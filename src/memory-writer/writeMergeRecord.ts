@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { getProjectRecordLogPath } from "./projectPaths.js";
 
 export interface MergeRecordSessionInput {
   threadId: string;
@@ -68,8 +69,8 @@ export function getDefaultSessionRoots(homeDir = os.homedir()): string[] {
 export async function appendMergeRecord(
   input: WriteMergeRecordInput,
 ): Promise<WriteMergeRecordResult> {
-  const logDir = path.join(input.projectRoot, "memory");
-  const logPath = path.join(logDir, "record.log");
+  const logPath = getProjectRecordLogPath(input.projectRoot);
+  const logDir = path.dirname(logPath);
   const sessionRoots = input.sessionRoots ?? getDefaultSessionRoots();
 
   await mkdir(logDir, { recursive: true });

@@ -1,6 +1,6 @@
 # codex-thread-merge-mcp
 
-本项目提供一个本地 `STDIO MCP server + skill`，用于把同一项目下的多个 Codex 会话归并为新的 canonical thread，并同步项目根目录 `MEMORY.md`。
+本项目提供一个本地 `STDIO MCP server + skill`，用于把同一项目下的多个 Codex 会话归并为新的 canonical thread，并同步项目级工作目录 `.codex/codex-thread-merge/` 下的记忆产物。
 
 ## 1. 新设备安装
 
@@ -209,12 +209,18 @@ codex.cmd mcp get codex-thread-merge --json
 
 ## 6. 工具说明
 
+项目级产物目录约定：
+
+- `.codex/codex-thread-merge/MEMORY.md`：项目级权威记忆
+- `.codex/codex-thread-merge/memory/<session_id>.md`：会话级源数据文件（按会话拆分）
+- `.codex/codex-thread-merge/record.log`：merge/refresh 审计日志
+
 - `preview_project_threads`
   - 按 `cwd` 发现候选会话
 - `merge_project_threads`
-  - 读取候选会话并归并为 canonical thread，可选更新 `MEMORY.md`，并可选 compact 或重命名旧会话
+  - 读取候选会话并归并为 canonical thread，更新 `.codex/codex-thread-merge/MEMORY.md`，并为每个候选会话写入 `.codex/codex-thread-merge/memory/<session_id>.md`，可选 compact 或重命名旧会话
 - `refresh_project_memory`
-  - 只刷新 `MEMORY.md`，不创建 canonical thread
+  - 只刷新 `.codex/codex-thread-merge/MEMORY.md` 与会话级 `memory/<session_id>.md`，不创建 canonical thread
 
 ## 7. 调用示例
 

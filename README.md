@@ -1,6 +1,6 @@
 # codex-thread-merge-weak
 
-本项目提供一个本地 `STDIO MCP server + skill`，用于把同一项目下的多个 Codex 会话归并为新的 canonical thread，并同步项目根目录 `MEMORY.md`。
+本项目提供一个本地 `STDIO MCP server + skill`，用于把同一项目下的多个 Codex 会话归并为新的 canonical thread，并同步项目级工作目录 `.codex/codex-thread-merge/` 下的记忆产物。
 
 ## 使用方法
 
@@ -85,7 +85,7 @@ powershell .\scripts\update.ps1
 当同一个项目在 Codex 中产生多个会话时，历史上下文会分散在多个 thread 里，后续继续开发很容易出现这些问题：
 
 - 新会话不知道旧会话已经做过什么
-- `MEMORY.md` 失真或长期不更新
+- `.codex/codex-thread-merge/MEMORY.md` 失真或长期不更新
 - 项目事实、待办、风险分散在不同 thread 中
 - 需要人工复制粘贴多个会话内容，成本高且容易漏信息
 
@@ -94,7 +94,7 @@ powershell .\scripts\update.ps1
 1. 发现当前项目相关的 Codex threads
 2. 预览候选 thread
 3. 把多个 thread 归并成新的 canonical thread
-4. 刷新项目根目录 `MEMORY.md`
+4. 刷新 `.codex/codex-thread-merge/MEMORY.md`
 5. 可选 compact/重命名旧 thread
 
 ## 整体流程
@@ -107,12 +107,13 @@ powershell .\scripts\update.ps1
 4. 工具先返回候选列表供预览
 5. 工具读取候选 thread 内容并做归并
 6. 生成一个新的 canonical thread
-7. 按结果刷新项目根目录 `MEMORY.md`
-8. 可选 compact 旧 thread，并给旧 thread 名称追加 merged 标记
+7. 按结果刷新 `.codex/codex-thread-merge/MEMORY.md`
+8. 为每个候选会话写入 `.codex/codex-thread-merge/memory/<session_id>.md`
+9. 可选 compact 旧 thread，并给旧 thread 名称追加 merged 标记
 
 这个项目的核心思路是：把“线程发现、归并、记忆刷新”做成稳定的本地工具链，而不是把这些规则全塞进 prompt。
 
-补充说明：`memory/record.log` 仅用于 merge 过程的审计留痕，不替代 `MEMORY.md`。项目长期事实仍以 `MEMORY.md` 为准。
+补充说明：`.codex/codex-thread-merge/record.log` 仅用于 merge 过程的审计留痕，不替代 `.codex/codex-thread-merge/MEMORY.md`。项目长期事实以 `.codex/codex-thread-merge/MEMORY.md` 为准。
 
 ## 实现方式
 
@@ -163,8 +164,9 @@ dist/server/index.js
 
 ### 5. MEMORY.md 写入层
 
-归并结果不会只停留在新 thread 内，还会写回项目根目录 `MEMORY.md`。这样后续任何新会话都可以先从 `MEMORY.md` 获得项目的长期事实，而不是依赖模型临时记忆。
-`memory/record.log` 是附加审计日志，不参与事实主存储，也不改变 `MEMORY.md` 的权威性。
+归并结果不会只停留在新 thread 内，还会写回 `.codex/codex-thread-merge/MEMORY.md`。这样后续任何新会话都可以先从该文件获得项目长期事实，而不是依赖模型临时记忆。
+`.codex/codex-thread-merge/memory/<session_id>.md` 用于保存每个候选会话的源数据摘录，便于后续蒸馏与会话归并。
+`.codex/codex-thread-merge/record.log` 是附加审计日志，不参与事实主存储，也不改变 `MEMORY.md` 的权威性。
 
 对应代码主要在：
 

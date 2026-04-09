@@ -31,7 +31,7 @@ export function getToolDefinitions(): McpToolDefinition[] {
     {
       name: TOOL_MERGE_PROJECT_THREADS,
       description:
-        "Merge project threads into one canonical thread and optionally update MEMORY.md.",
+        "Merge project threads into one canonical thread, refresh .codex/codex-thread-merge/MEMORY.md, and persist per-session memory files.",
       inputSchema: {
         cwd: z
           .string()
@@ -58,7 +58,7 @@ export function getToolDefinitions(): McpToolDefinition[] {
     {
       name: TOOL_REFRESH_PROJECT_MEMORY,
       description:
-        "Refresh only MEMORY.md from current project merged state without creating a new canonical thread.",
+        "Refresh .codex/codex-thread-merge/MEMORY.md and per-session memory files without creating a new canonical thread.",
       inputSchema: {
         cwd: z
           .string()

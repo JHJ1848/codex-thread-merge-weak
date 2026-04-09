@@ -1,6 +1,6 @@
 ---
 name: codex-thread-merge-weak
-description: Merge, compact, consolidate, or sync multiple Codex conversations for the current project into one canonical thread and refresh MEMORY.md. Use when the user asks to merge project sessions, compact all sessions for a project, or sync the project's canonical thread. Prefer calling MCP tools preview_project_threads, merge_project_threads, and refresh_project_memory instead of encoding merge rules in the prompt.
+description: Merge, compact, consolidate, or sync multiple Codex conversations for the current project into one canonical thread, refresh `.codex/codex-thread-merge/MEMORY.md`, and persist per-session memory files under `.codex/codex-thread-merge/memory/<session_id>.md`. Use when the user asks to merge project sessions, compact all sessions for a project, or sync the project's canonical thread. Prefer calling MCP tools preview_project_threads, merge_project_threads, and refresh_project_memory instead of encoding merge rules in the prompt.
 ---
 
 # Codex Thread Merge
@@ -10,14 +10,15 @@ description: Merge, compact, consolidate, or sync multiple Codex conversations f
 安装入口（Windows）可参考：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/scripts/install.ps1 | iex"
+powershell -ep bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.ps1|iex"
 ```
 
 ## 默认流程
 
 1. 先调用 `preview_project_threads` 查看当前 `cwd` 下的候选会话。
-2. 再调用 `merge_project_threads` 生成或更新 canonical thread，并同步 `MEMORY.md`。
-3. 如果用户只要求刷新记忆文件，调用 `refresh_project_memory`。
+2. 再调用 `merge_project_threads` 生成或更新 canonical thread，并同步 `.codex/codex-thread-merge/MEMORY.md`。
+3. 同步更新会话级源数据文件到 `.codex/codex-thread-merge/memory/<session_id>.md`。
+4. 如果用户只要求刷新记忆文件，调用 `refresh_project_memory`。
 
 ## 触发短语
 

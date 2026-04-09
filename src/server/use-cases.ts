@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { CodexAppServerClient } from "../codex-client/client.js";
 import { appendMergeRecord } from "../memory-writer/writeMergeRecord.js";
+import { writeSessionMemoryFiles } from "../memory-writer/writeSessionMemoryFiles.js";
 import { discoverProjectThreads } from "../thread-discovery/discovery.js";
 import type {
   MergeThreadsOptions,
@@ -41,6 +42,8 @@ export interface MergeProjectThreadsOutput {
   skippedThreadIds: string[];
   memoryPath?: string;
   recordLogPath?: string;
+  sessionMemoryDir?: string;
+  sessionMemoryPaths: string[];
   warnings: string[];
   mergedState: MergedProjectState;
 }
@@ -51,6 +54,8 @@ export interface RefreshProjectMemoryInput {
 
 export interface RefreshProjectMemoryOutput {
   memoryPath: string;
+  sessionMemoryDir: string;
+  sessionMemoryPaths: string[];
   updatedAt: string;
   warnings: string[];
 }
@@ -172,10 +177,38 @@ export class MergeProjectThreadsUseCaseImpl implements MergeProjectThreadsUseCas
       if (input.writeMemory ?? true) {
         try {
           memoryPath = (
-            await writeProjectMemory(resolved.mergedState, { projectRoot: resolved.projectRoot })
+            await writeProjectMemory(resolved.mergedState, {
+              projectRoot: resolved.projectRoot,
+            })
           ).path;
         } catch (error) {
           warnings.push(`MEMORY.md update failed: ${toErrorMessage(error)}`);
+        }
+      }
+
+      let sessionMemoryPaths: string[] = [];
+      let sessionMemoryDir: string | undefined;
+      if (input.writeMemory ?? true) {
+        try {
+          const sessionMemoryResult = await writeSessionMemoryFiles({
+            projectRoot: resolved.projectRoot,
+            generatedAt: resolved.mergedState.generatedAt,
+            selectionRule: resolved.selectionRule,
+            sessions: resolved.sourceThreads.map((thread) => ({
+              threadId: thread.threadId,
+              name: thread.name,
+              updatedAt: thread.updatedAt,
+              turns: thread.turns.map((turn) => ({
+                role: turn.role,
+                text: turn.text,
+                createdAt: turn.createdAt,
+              })),
+            })),
+          });
+          sessionMemoryDir = sessionMemoryResult.dir;
+          sessionMemoryPaths = sessionMemoryResult.paths;
+        } catch (error) {
+          warnings.push(`session memory write failed: ${toErrorMessage(error)}`);
         }
       }
 
@@ -185,6 +218,8 @@ export class MergeProjectThreadsUseCaseImpl implements MergeProjectThreadsUseCas
         mergedThreadIds,
         skippedThreadIds: resolved.skippedThreadIds,
         memoryPath,
+        sessionMemoryDir,
+        sessionMemoryPaths,
         warnings,
         mergedState: resolved.mergedState,
       };
@@ -284,8 +319,25 @@ export class RefreshProjectMemoryUseCaseImpl implements RefreshProjectMemoryUseC
       const memory = await writeProjectMemory(resolved.mergedState, {
         projectRoot: resolved.projectRoot,
       });
+      const sessionMemoryResult = await writeSessionMemoryFiles({
+        projectRoot: resolved.projectRoot,
+        generatedAt: resolved.mergedState.generatedAt,
+        selectionRule: resolved.selectionRule,
+        sessions: resolved.sourceThreads.map((thread) => ({
+          threadId: thread.threadId,
+          name: thread.name,
+          updatedAt: thread.updatedAt,
+          turns: thread.turns.map((turn) => ({
+            role: turn.role,
+            text: turn.text,
+            createdAt: turn.createdAt,
+          })),
+        })),
+      });
       return {
         memoryPath: memory.path,
+        sessionMemoryDir: sessionMemoryResult.dir,
+        sessionMemoryPaths: sessionMemoryResult.paths,
         updatedAt: resolved.mergedState.generatedAt,
         warnings: resolved.warnings,
       };

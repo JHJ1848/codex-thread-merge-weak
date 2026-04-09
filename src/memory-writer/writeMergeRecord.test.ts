@@ -9,6 +9,7 @@ import {
   getDefaultSessionRoots,
   type WriteMergeRecordInput,
 } from "./writeMergeRecord.js";
+import { getProjectRecordLogPath } from "./projectPaths.js";
 
 async function withTempDir(run: (tempDir: string) => Promise<void>): Promise<void> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "ctm-record-test-"));
@@ -24,7 +25,7 @@ test("appendMergeRecord writes readable log and resolves session files with pref
     const projectRoot = path.join(tempDir, "project");
     const sessionRoot = path.join(tempDir, ".codex", "sessions");
     const archivedRoot = path.join(tempDir, ".codex", "archived_sessions");
-    await mkdir(path.join(projectRoot, "memory"), { recursive: true });
+    await mkdir(projectRoot, { recursive: true });
     await mkdir(path.join(sessionRoot, "2026", "04"), { recursive: true });
     await mkdir(path.join(archivedRoot, "2026", "04"), { recursive: true });
 
@@ -42,7 +43,7 @@ test("appendMergeRecord writes readable log and resolves session files with pref
       recordedAt: "2026-04-08T10:00:00.000Z",
       canonicalThreadId: "canonical-1",
       canonicalThreadName: "[Canonical] demo-project 2026-04-08",
-      memoryPath: path.join(projectRoot, "MEMORY.md"),
+      memoryPath: path.join(projectRoot, ".codex", "codex-thread-merge", "MEMORY.md"),
       selectionRule: "include project cwd",
       candidateSessions: [
         { threadId: "thread-a", name: "Session A", updatedAt: "2026-04-08T09:00:00.000Z", turnCount: 5 },
@@ -63,7 +64,7 @@ test("appendMergeRecord writes readable log and resolves session files with pref
 
     const result = await appendMergeRecord(input);
 
-    assert.equal(result.path, path.join(projectRoot, "memory", "record.log"));
+    assert.equal(result.path, getProjectRecordLogPath(projectRoot));
     assert.equal(result.sessionSummaries[0]?.path, preferredSessionPath);
     assert.equal(result.sessionSummaries[1]?.path, archivedOnlyPath);
     assert.equal(result.sessionSummaries[2]?.found, false);

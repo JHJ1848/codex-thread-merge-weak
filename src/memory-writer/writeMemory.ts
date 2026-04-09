@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { MergedProjectState } from "../shared/merge-types.js";
 import { getMemoryManagedBlock, upsertManagedBlock } from "./memoryTemplate.js";
+import { getProjectMemoryPath } from "./projectPaths.js";
 
 export interface WriteMemoryOptions {
   projectRoot: string;
@@ -26,8 +27,9 @@ export async function writeProjectMemory(
   state: MergedProjectState,
   options: WriteMemoryOptions,
 ): Promise<WriteMemoryResult> {
-  const fileName = options.fileName ?? "MEMORY.md";
-  const filePath = path.join(options.projectRoot, fileName);
+  const filePath = options.fileName
+    ? path.join(options.projectRoot, options.fileName)
+    : getProjectMemoryPath(options.projectRoot);
   await mkdir(path.dirname(filePath), { recursive: true });
 
   const { existed, content } = await safeRead(filePath);
