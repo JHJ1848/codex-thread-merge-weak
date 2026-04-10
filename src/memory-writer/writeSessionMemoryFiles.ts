@@ -1,6 +1,10 @@
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { getProjectSessionMemoryDir, getProjectSessionMemoryPath } from "./projectPaths.js";
+import {
+  getProjectContextPath,
+  getProjectSessionMemoryDir,
+  getProjectSessionMemoryPath,
+} from "./projectPaths.js";
 
 export interface SessionMemoryTurn {
   role: string;
@@ -11,7 +15,12 @@ export interface SessionMemoryTurn {
 export interface SessionMemoryInput {
   threadId: string;
   name?: string | null;
+  createdAt?: string | null;
   updatedAt?: string | null;
+  archived?: boolean;
+  mergedBefore?: boolean;
+  mergedAt?: string | null;
+  mergeCount?: number;
   turns: SessionMemoryTurn[];
 }
 
@@ -25,6 +34,7 @@ export interface WriteSessionMemoryFilesInput {
 export interface WriteSessionMemoryFilesResult {
   dir: string;
   paths: string[];
+  contextPath: string;
 }
 
 export async function writeSessionMemoryFiles(
@@ -64,7 +74,16 @@ export async function writeSessionMemoryFiles(
     await rm(path.join(dir, entry.name), { force: true });
   }
 
-  return { dir, paths };
+  const contextPath = getProjectContextPath(input.projectRoot);
+  const contextMarkdown = formatProjectContextFile({
+    generatedAt,
+    projectRoot: input.projectRoot,
+    selectionRule: input.selectionRule,
+    sessions: input.sessions,
+  });
+  await writeFile(contextPath, contextMarkdown, "utf8");
+
+  return { dir, paths, contextPath };
 }
 
 interface FormatSessionMemoryOptions {
@@ -77,13 +96,18 @@ interface FormatSessionMemoryOptions {
 export function formatSessionMemoryFile(options: FormatSessionMemoryOptions): string {
   const { generatedAt, projectRoot, selectionRule, session } = options;
   const lines: string[] = [
-    `# Session Memory: ${session.threadId}`,
+    `# Session Context: ${session.threadId}`,
     "",
     `- generatedAt: ${generatedAt}`,
     `- projectRoot: ${projectRoot}`,
     `- threadId: ${session.threadId}`,
     `- name: ${session.name ?? "unnamed"}`,
+    `- createdAt: ${session.createdAt ?? "unknown"}`,
     `- updatedAt: ${session.updatedAt ?? "unknown"}`,
+    `- archived: ${typeof session.archived === "boolean" ? String(session.archived) : "unknown"}`,
+    `- mergedBefore: ${typeof session.mergedBefore === "boolean" ? String(session.mergedBefore) : "unknown"}`,
+    `- mergedAt: ${session.mergedAt ?? "unknown"}`,
+    `- mergeCount: ${typeof session.mergeCount === "number" ? String(session.mergeCount) : "unknown"}`,
   ];
 
   if (selectionRule && selectionRule.trim().length > 0) {
@@ -91,12 +115,66 @@ export function formatSessionMemoryFile(options: FormatSessionMemoryOptions): st
   }
 
   lines.push("", "## Conversation");
+  lines.push(...formatSessionConversationLines(session));
 
-  if (session.turns.length === 0) {
-    lines.push("Codex: (no readable turns)");
+  return `${lines.join("\n")}\n`;
+}
+
+interface FormatProjectContextOptions {
+  generatedAt: string;
+  projectRoot: string;
+  selectionRule?: string;
+  sessions: SessionMemoryInput[];
+}
+
+export function formatProjectContextFile(options: FormatProjectContextOptions): string {
+  const lines: string[] = [
+    "# Project Context",
+    "",
+    `- generatedAt: ${options.generatedAt}`,
+    `- projectRoot: ${options.projectRoot}`,
+    `- sessionCount: ${options.sessions.length}`,
+  ];
+
+  if (options.selectionRule && options.selectionRule.trim().length > 0) {
+    lines.push(`- selectionRule: ${options.selectionRule.trim()}`);
+  }
+
+  lines.push("", "## Sessions");
+
+  if (options.sessions.length === 0) {
+    lines.push("- none");
     return `${lines.join("\n")}\n`;
   }
 
+  for (const session of options.sessions) {
+    lines.push(
+      `- ${session.threadId}${session.name ? ` (${session.name})` : ""}${session.updatedAt ? ` | updatedAt=${session.updatedAt}` : ""}${typeof session.mergedBefore === "boolean" ? ` | mergedBefore=${session.mergedBefore}` : ""}`,
+    );
+  }
+
+  for (const session of options.sessions) {
+    lines.push("", `### ${session.threadId}`, "");
+    lines.push(`- name: ${session.name ?? "unnamed"}`);
+    lines.push(`- createdAt: ${session.createdAt ?? "unknown"}`);
+    lines.push(`- updatedAt: ${session.updatedAt ?? "unknown"}`);
+    lines.push(`- archived: ${typeof session.archived === "boolean" ? String(session.archived) : "unknown"}`);
+    lines.push(`- mergedBefore: ${typeof session.mergedBefore === "boolean" ? String(session.mergedBefore) : "unknown"}`);
+    lines.push(`- mergedAt: ${session.mergedAt ?? "unknown"}`);
+    lines.push(`- mergeCount: ${typeof session.mergeCount === "number" ? String(session.mergeCount) : "unknown"}`);
+    lines.push("", "#### Conversation");
+    lines.push(...formatSessionConversationLines(session));
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+export function formatSessionConversationLines(session: SessionMemoryInput): string[] {
+  if (session.turns.length === 0) {
+    return ["Codex: (no readable turns)"];
+  }
+
+  const lines: string[] = [];
   for (const turn of session.turns) {
     const speaker = normalizeSpeaker(turn);
     const text = normalizeText(turn.text);
@@ -110,7 +188,7 @@ export function formatSessionMemoryFile(options: FormatSessionMemoryOptions): st
     }
   }
 
-  return `${lines.join("\n")}\n`;
+  return lines.length > 0 ? lines : ["Codex: (no readable turns)"];
 }
 
 function normalizeSpeaker(

@@ -43,6 +43,11 @@ test("appendMergeRecord writes readable log and resolves session files with pref
       recordedAt: "2026-04-08T10:00:00.000Z",
       canonicalThreadId: "canonical-1",
       canonicalThreadName: "[Canonical] demo-project 2026-04-08",
+      canonicalTurnId: "turn-1",
+      canonicalTurnStatus: "completed",
+      resumeVerified: true,
+      resumeThreadStatus: "active",
+      resumeVerificationMessage: "fresh client thread/resume succeeded",
       memoryPath: path.join(projectRoot, ".codex", "codex-thread-merge", "MEMORY.md"),
       selectionRule: "include project cwd",
       candidateSessions: [
@@ -74,6 +79,8 @@ test("appendMergeRecord writes readable log and resolves session files with pref
     assert.match(logContent, /=== Merge Record ===/);
     assert.match(logContent, /project: demo-project/);
     assert.match(logContent, /status: success/);
+    assert.match(logContent, /canonicalTurn: turn-1 \(completed\)/);
+    assert.match(logContent, /resumeVerified: true \(active \| fresh client thread\/resume succeeded\)/);
     assert.match(logContent, /1\. thread-a/);
     assert.match(logContent, /mergeState: merged/);
     assert.match(logContent, /mergeState: skipped/);

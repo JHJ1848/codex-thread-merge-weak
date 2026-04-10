@@ -38,6 +38,11 @@ export interface ThreadStartParams {
   cwd?: string;
 }
 
+export interface ThreadResumeParams {
+  threadId: string;
+  cwd?: string;
+}
+
 export interface TurnStartParams {
   threadId: string;
   text: string;
@@ -231,6 +236,23 @@ export class CodexAppServerClient {
     const response = asObject(raw);
     if (!isObject(response.thread)) {
       throw new Error("thread/start returned no thread payload.");
+    }
+    return normalizeThread(response.thread, false);
+  }
+
+  public async resumeThread(params: ThreadResumeParams): Promise<AppServerThread> {
+    await this.initPromise;
+    const raw = await this.transport.request<JsonValue>(
+      "thread/resume",
+      toJsonObject({
+        threadId: params.threadId,
+        cwd: params.cwd ?? null,
+        persistExtendedHistory: false,
+      }),
+    );
+    const response = asObject(raw);
+    if (!isObject(response.thread)) {
+      throw new Error("thread/resume returned no thread payload.");
     }
     return normalizeThread(response.thread, false);
   }

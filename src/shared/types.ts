@@ -40,6 +40,12 @@ export interface ProjectThreadCandidate {
   updatedAt: string | null;
 }
 
+export interface ProjectThreadCandidateWithMergeHistory extends ProjectThreadCandidate {
+  mergedBefore: boolean;
+  mergedAt: string | null;
+  mergeCount: number;
+}
+
 export interface ProjectThreadDiscoveryResult {
   projectRoot: string;
   selectionRule: string;

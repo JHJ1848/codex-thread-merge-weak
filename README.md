@@ -92,9 +92,9 @@ powershell .\scripts\update.ps1
 本项目的目标就是把这件事变成一个本地可调用的 MCP 能力：
 
 1. 发现当前项目相关的 Codex threads
-2. 预览候选 thread
-3. 把多个 thread 归并成新的 canonical thread
-4. 刷新 `.codex/codex-thread-merge/MEMORY.md`
+2. 先 preview 候选 thread，再由用户在聊天里选择要合并的编号或 thread id
+3. 先生成项目上下文文件（`CONTEXT.md` + `context/<session_id>.md`）和记忆文件（`MEMORY.md`）
+4. 再新建 canonical thread 并写入 bootstrap
 5. 可选 compact/重命名旧 thread
 
 ## 整体流程
@@ -103,17 +103,32 @@ powershell .\scripts\update.ps1
 
 1. Codex 识别到已安装的 skill：`codex-thread-merge-weak`
 2. skill 引导 Codex 调用本地 MCP 工具，而不是让模型自己硬编归并规则
-3. MCP server 根据当前 `cwd` 发现同项目相关 thread
-4. 工具先返回候选列表供预览
-5. 工具读取候选 thread 内容并做归并
-6. 生成一个新的 canonical thread
-7. 按结果刷新 `.codex/codex-thread-merge/MEMORY.md`
-8. 为每个候选会话写入 `.codex/codex-thread-merge/memory/<session_id>.md`
-9. 可选 compact 旧 thread，并给旧 thread 名称追加 merged 标记
+3. MCP server 先执行 `preview_project_threads`，按当前 `cwd` 返回候选列表
+4. Agent 在聊天中让用户选择编号或直接提供 `thread id`
+5. Agent 再执行 `merge_project_threads`，按用户选择的集合继续
+6. 先生成 `.codex/codex-thread-merge/CONTEXT.md` 与 `.codex/codex-thread-merge/context/<session_id>.md`
+7. 生成/刷新 `.codex/codex-thread-merge/MEMORY.md`
+8. 新建 canonical thread，并等待首个 canonical turn 完成与可恢复验证
+9. 追加 `.codex/codex-thread-merge/record.log` 审计记录，并按配置处理旧线程
 
 这个项目的核心思路是：把“线程发现、归并、记忆刷新”做成稳定的本地工具链，而不是把这些规则全塞进 prompt。
 
-补充说明：`.codex/codex-thread-merge/record.log` 仅用于 merge 过程的审计留痕，不替代 `.codex/codex-thread-merge/MEMORY.md`。项目长期事实以 `.codex/codex-thread-merge/MEMORY.md` 为准。
+补充说明：
+- `.codex/codex-thread-merge/CONTEXT.md`：本次归并的项目上下文汇总，偏“工作上下文入口”
+- `.codex/codex-thread-merge/context/<session_id>.md`：候选会话级上下文快照，偏“来源明细”
+- `.codex/codex-thread-merge/MEMORY.md`：项目长期事实与决策沉淀，偏“长期记忆”
+- `.codex/codex-thread-merge/record.log`：每次 merge/refresh 的审计留痕，不替代 MEMORY/CONTEXT
+
+### Merge 成功判定
+
+`merge_project_threads` 判定为成功，至少同时满足：
+
+1. 已完成 preview 且用户已在聊天中确认选择编号或 thread id
+2. `.codex/codex-thread-merge/CONTEXT.md` 与 `.codex/codex-thread-merge/context/<session_id>.md` 已生成
+3. `.codex/codex-thread-merge/MEMORY.md` 已完成更新
+4. 已创建 canonical thread，并写入 bootstrap 内容
+5. canonical thread 可以在 Codex 中通过 `codex resume` 正常看到并恢复
+6. `.codex/codex-thread-merge/record.log` 已追加本次 merge 记录
 
 ## 实现方式
 
@@ -125,7 +140,7 @@ powershell .\scripts\update.ps1
 skills/codex-thread-merge-weak
 ```
 
-它的作用不是实现业务逻辑，而是定义什么时候应该调用这个 MCP，以及优先调用哪些工具。项目内 skill 源目录始终保留；安装脚本只是在你确认后，额外复制到全局 `~/.codex/skills/codex-thread-merge-weak`。
+它的作用不是实现业务逻辑，而是定义什么时候应该调用这个 MCP，以及优先调用哪些工具。skill 会先要求 `preview_project_threads`，再要求用户在聊天中明确选择编号或 thread id，之后才允许执行 merge。项目内 skill 源目录始终保留；安装脚本只是在你确认后，额外复制到全局 `~/.codex/skills/codex-thread-merge-weak`。
 
 ### 2. MCP server 层
 
@@ -162,11 +177,13 @@ dist/server/index.js
 - `src/thread-discovery`
 - `src/server`
 
-### 5. MEMORY.md 写入层
+### 5. CONTEXT/MEMORY 写入层
 
-归并结果不会只停留在新 thread 内，还会写回 `.codex/codex-thread-merge/MEMORY.md`。这样后续任何新会话都可以先从该文件获得项目长期事实，而不是依赖模型临时记忆。
-`.codex/codex-thread-merge/memory/<session_id>.md` 用于保存每个候选会话的源数据摘录，便于后续蒸馏与会话归并。
-`.codex/codex-thread-merge/record.log` 是附加审计日志，不参与事实主存储，也不改变 `MEMORY.md` 的权威性。
+归并工作会先产出上下文层，再产出长期记忆层：
+- `.codex/codex-thread-merge/CONTEXT.md`：项目级上下文聚合（面向当前归并批次）
+- `.codex/codex-thread-merge/context/<session_id>.md`：按会话拆分的上下文文件（可追溯来源）
+- `.codex/codex-thread-merge/MEMORY.md`：项目长期事实、决策和稳定结论
+- `.codex/codex-thread-merge/record.log`：操作审计日志（成功/失败、警告、选择集）
 
 对应代码主要在：
 

@@ -1,35 +1,43 @@
----
-name: codex-thread-merge-weak
-description: Merge, compact, consolidate, or sync multiple Codex conversations for the current project into one canonical thread, refresh `.codex/codex-thread-merge/MEMORY.md`, and persist per-session memory files under `.codex/codex-thread-merge/memory/<session_id>.md`. Use when the user asks to merge project sessions, compact all sessions for a project, or sync the project's canonical thread. Prefer calling MCP tools preview_project_threads, merge_project_threads, and refresh_project_memory instead of encoding merge rules in the prompt.
----
+# codex-thread-merge-weak
 
-# Codex Thread Merge
+Use this skill when user asks to merge/compact/sync Codex conversations for the current project.
 
-只负责触发 MCP 工具，不在提示词里重写归并算法。
+## Required workflow
 
-安装入口（Windows）可参考：
+Follow this order strictly:
 
-```powershell
-powershell -ep bypass -c "irm https://raw.githubusercontent.com/JHJ1848/codex-thread-merge-weak/main/i.ps1|iex"
-```
+1. Call `preview_project_threads` first.
+2. Show candidate sessions to the user with both:
+   - list index (1-based)
+   - `threadId`
+3. Ask the user in chat to choose which sessions to merge.
+   - Accept either index list (for example: `1,3,4`)
+   - Or direct `threadId` list
+4. Resolve the final selected thread set from user reply.
+5. Call `merge_project_threads` only after user selection is explicit.
 
-## 默认流程
+Do not skip preview.
+Do not auto-merge all candidates without explicit user selection in chat.
+Do not use CLI-style checkbox prompts.
 
-1. 先调用 `preview_project_threads` 查看当前 `cwd` 下的候选会话。
-2. 再调用 `merge_project_threads` 生成或更新 canonical thread，并同步 `.codex/codex-thread-merge/MEMORY.md`。
-3. 同步更新会话级源数据文件到 `.codex/codex-thread-merge/memory/<session_id>.md`。
-4. 如果用户只要求刷新记忆文件，调用 `refresh_project_memory`。
+## Output expectations
 
-## 触发短语
+When merge completes, report:
 
-- 归并当前项目会话
-- 把这个项目的多个 Codex 会话合成主会话
-- 同步当前项目的 canonical thread
-- compact 并整合这个项目的会话上下文
+- canonical thread id/name
+- canonical turn id/status
+- resume verification result
+- generated artifact paths under `.codex/codex-thread-merge/`, including:
+  - `CONTEXT.md`
+  - `context/<session_id>.md`
+  - `MEMORY.md`
+  - `record.log`
 
-## 约束
+If canonical thread is created but resume is not visible/verified, treat as failure and report it clearly.
 
-- 提示词保持短小，避免在 skill 里写复杂规则。
-- 以 MCP 工具输出为准。
-- 不在 skill 文本中定义冲突处理模板。
-- 未被明确要求时，不主动 archive 旧会话。
+## Tools
+
+- `preview_project_threads`
+- `merge_project_threads`
+- `refresh_project_memory`
+

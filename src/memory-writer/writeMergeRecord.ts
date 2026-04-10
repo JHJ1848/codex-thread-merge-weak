@@ -26,10 +26,18 @@ export interface WriteMergeRecordInput {
   selectionRule?: string;
   canonicalThreadId?: string;
   canonicalThreadName?: string;
+  canonicalTurnId?: string;
+  canonicalTurnStatus?: string;
+  resumeVerified?: boolean;
+  resumeThreadStatus?: string;
+  resumeVerificationMessage?: string;
+  contextPath?: string;
   memoryPath?: string;
   candidateSessions: MergeRecordSessionInput[];
+  selectedThreadIds?: string[];
   mergedThreadIds?: string[];
   skippedThreadIds?: string[];
+  sessionContextDir?: string;
   warnings?: string[];
   options?: MergeRecordOptionsSnapshot;
   sessionRoots?: string[];
@@ -50,6 +58,11 @@ export interface SessionFileSummary {
 export interface WriteMergeRecordResult {
   path: string;
   sessionSummaries: SessionFileSummary[];
+}
+
+export interface ThreadMergeHistoryEntry {
+  mergedAt: string;
+  mergeCount: number;
 }
 
 interface EnrichedSessionSummary extends SessionFileSummary {
@@ -202,7 +215,12 @@ export function formatMergeRecord(
     `projectRoot: ${input.projectRoot}`,
     `status: ${input.resultStatus}`,
     `canonicalThread: ${formatCanonicalThreadLine(input)}`,
+    `canonicalTurn: ${formatCanonicalTurnLine(input)}`,
+    `resumeVerified: ${formatResumeVerificationLine(input)}`,
+    `contextPath: ${input.contextPath ?? "not written"}`,
     `memoryPath: ${input.memoryPath ?? "not written"}`,
+    `selectedThreadIds: ${formatSelectedThreadIds(input.selectedThreadIds)}`,
+    `sessionContextDir: ${input.sessionContextDir ?? "not written"}`,
     `candidateSessionCount: ${sessions.length}`,
     `mergedSessionCount: ${mergedCount}`,
     `skippedSessionCount: ${skippedCount}`,
@@ -256,6 +274,79 @@ export function formatMergeRecord(
   return `${lines.join("\n")}\n\n`;
 }
 
+export async function readMergeHistoryByThreadId(
+  projectRoot: string,
+): Promise<Map<string, ThreadMergeHistoryEntry>> {
+  const recordLogPath = getProjectRecordLogPath(projectRoot);
+  try {
+    const content = await readFile(recordLogPath, "utf8");
+    return parseMergeHistoryByThreadId(content);
+  } catch {
+    return new Map();
+  }
+}
+
+export function parseMergeHistoryByThreadId(
+  recordLogContent: string,
+): Map<string, ThreadMergeHistoryEntry> {
+  const historyByThread = new Map<string, ThreadMergeHistoryEntry>();
+  const normalizedContent = recordLogContent.replace(/\r\n/g, "\n");
+  const blocks = (`\n${normalizedContent}`).split("\n=== Merge Record ===\n").slice(1);
+
+  for (const block of blocks) {
+    const lines = block.trim().split("\n");
+    const status = readRecordValue(lines, "status");
+    if (status !== "success") {
+      continue;
+    }
+
+    const recordedAt = readRecordValue(lines, "recordedAt");
+    if (!recordedAt) {
+      continue;
+    }
+
+    let inCandidateSessions = false;
+    let currentThreadId: string | null = null;
+    for (const line of lines) {
+      if (line === "candidateSessions:") {
+        inCandidateSessions = true;
+        currentThreadId = null;
+        continue;
+      }
+      if (line === "warnings:") {
+        inCandidateSessions = false;
+        currentThreadId = null;
+        continue;
+      }
+      if (!inCandidateSessions) {
+        continue;
+      }
+
+      const threadMatch = line.match(/^\d+\.\s+(.+)$/);
+      if (threadMatch) {
+        currentThreadId = threadMatch[1].trim();
+        continue;
+      }
+
+      const mergeStateMatch = line.match(/^\s*-\s*mergeState:\s*(.+)$/);
+      if (!currentThreadId || !mergeStateMatch || mergeStateMatch[1].trim() !== "merged") {
+        continue;
+      }
+
+      const previous = historyByThread.get(currentThreadId);
+      historyByThread.set(currentThreadId, {
+        mergedAt:
+          !previous || recordedAt.localeCompare(previous.mergedAt) > 0
+            ? recordedAt
+            : previous.mergedAt,
+        mergeCount: (previous?.mergeCount ?? 0) + 1,
+      });
+    }
+  }
+
+  return historyByThread;
+}
+
 function formatCanonicalThreadLine(input: WriteMergeRecordInput): string {
   if (!input.canonicalThreadId && !input.canonicalThreadName) {
     return "not created";
@@ -266,6 +357,29 @@ function formatCanonicalThreadLine(input: WriteMergeRecordInput): string {
   }
 
   return input.canonicalThreadId ?? input.canonicalThreadName ?? "not created";
+}
+
+function formatCanonicalTurnLine(input: WriteMergeRecordInput): string {
+  if (!input.canonicalTurnId && !input.canonicalTurnStatus) {
+    return "not created";
+  }
+  return `${input.canonicalTurnId ?? "unknown"} (${input.canonicalTurnStatus ?? "unknown"})`;
+}
+
+function formatResumeVerificationLine(input: WriteMergeRecordInput): string {
+  const status =
+    typeof input.resumeVerified === "boolean" ? String(input.resumeVerified) : "unknown";
+  const detail = [input.resumeThreadStatus, input.resumeVerificationMessage]
+    .filter((value) => typeof value === "string" && value.trim().length > 0)
+    .join(" | ");
+  return detail ? `${status} (${detail})` : status;
+}
+
+function formatSelectedThreadIds(selectedThreadIds: string[] | undefined): string {
+  const normalized = selectedThreadIds
+    ?.map((threadId) => threadId.trim())
+    .filter((threadId) => threadId.length > 0);
+  return normalized && normalized.length > 0 ? normalized.join(", ") : "none";
 }
 
 function formatOptions(options: MergeRecordOptionsSnapshot): string {
@@ -300,4 +414,14 @@ function formatBytes(bytes: number): string {
 
 function countMatches(content: string, pattern: RegExp): number {
   return content.match(pattern)?.length ?? 0;
+}
+
+function readRecordValue(lines: string[], key: string): string | null {
+  const prefix = `${key}:`;
+  const line = lines.find((entry) => entry.startsWith(prefix));
+  if (!line) {
+    return null;
+  }
+  const value = line.slice(prefix.length).trim();
+  return value.length > 0 ? value : null;
 }

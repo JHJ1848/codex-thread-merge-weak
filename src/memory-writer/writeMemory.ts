@@ -1,12 +1,19 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { MergedProjectState } from "../shared/merge-types.js";
-import { getMemoryManagedBlock, upsertManagedBlock } from "./memoryTemplate.js";
+import {
+  appendHistoryBody,
+  getManagedHistoryBody,
+  getMemoryManagedBlock,
+  type MemoryMergeHistoryEntry,
+  upsertManagedBlock,
+} from "./memoryTemplate.js";
 import { getProjectMemoryPath } from "./projectPaths.js";
 
 export interface WriteMemoryOptions {
   projectRoot: string;
   fileName?: string;
+  mergeHistoryEntry?: MemoryMergeHistoryEntry;
 }
 
 export interface WriteMemoryResult {
@@ -33,7 +40,11 @@ export async function writeProjectMemory(
   await mkdir(path.dirname(filePath), { recursive: true });
 
   const { existed, content } = await safeRead(filePath);
-  const managedBlock = getMemoryManagedBlock(state);
+  const existingHistoryBody = getManagedHistoryBody(content);
+  const historyBody = options.mergeHistoryEntry
+    ? appendHistoryBody(existingHistoryBody, options.mergeHistoryEntry)
+    : existingHistoryBody;
+  const managedBlock = getMemoryManagedBlock(state, { historyBody });
   const next = upsertManagedBlock(content, managedBlock);
 
   await writeFile(filePath, next, "utf8");

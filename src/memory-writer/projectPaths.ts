@@ -19,12 +19,24 @@ export function getProjectRecordLogPath(projectRoot: string): string {
   return path.join(getProjectArtifactRoot(projectRoot), "record.log");
 }
 
+export function getProjectContextPath(projectRoot: string): string {
+  return path.join(getProjectArtifactRoot(projectRoot), "CONTEXT.md");
+}
+
+export function getProjectSessionContextDir(projectRoot: string): string {
+  return path.join(getProjectArtifactRoot(projectRoot), "context");
+}
+
+export function getProjectSessionContextPath(projectRoot: string, threadId: string): string {
+  return path.join(getProjectSessionContextDir(projectRoot), `${normalizeThreadIdForFileName(threadId)}.md`);
+}
+
 export function getProjectSessionMemoryDir(projectRoot: string): string {
-  return path.join(getProjectArtifactRoot(projectRoot), "memory");
+  return getProjectSessionContextDir(projectRoot);
 }
 
 export function getProjectSessionMemoryPath(projectRoot: string, threadId: string): string {
-  return path.join(getProjectSessionMemoryDir(projectRoot), `${normalizeThreadIdForFileName(threadId)}.md`);
+  return getProjectSessionContextPath(projectRoot, threadId);
 }
 
 function normalizeThreadIdForFileName(threadId: string): string {

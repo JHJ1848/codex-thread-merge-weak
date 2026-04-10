@@ -3,8 +3,11 @@ import path from "node:path";
 import test from "node:test";
 import {
   getProjectArtifactRoot,
+  getProjectContextPath,
   getProjectMemoryPath,
   getProjectRecordLogPath,
+  getProjectSessionContextDir,
+  getProjectSessionContextPath,
   getProjectSessionMemoryDir,
   getProjectSessionMemoryPath,
 } from "./projectPaths.js";
@@ -24,12 +27,24 @@ test("project artifact paths are rooted under .codex/codex-thread-merge", () => 
     path.join(root, ".codex", "codex-thread-merge", "record.log"),
   );
   assert.equal(
+    getProjectContextPath(root),
+    path.join(root, ".codex", "codex-thread-merge", "CONTEXT.md"),
+  );
+  assert.equal(
+    getProjectSessionContextDir(root),
+    path.join(root, ".codex", "codex-thread-merge", "context"),
+  );
+  assert.equal(
+    getProjectSessionContextPath(root, "thread-1"),
+    path.join(root, ".codex", "codex-thread-merge", "context", "thread-1.md"),
+  );
+  assert.equal(
     getProjectSessionMemoryDir(root),
-    path.join(root, ".codex", "codex-thread-merge", "memory"),
+    path.join(root, ".codex", "codex-thread-merge", "context"),
   );
   assert.equal(
     getProjectSessionMemoryPath(root, "thread-1"),
-    path.join(root, ".codex", "codex-thread-merge", "memory", "thread-1.md"),
+    path.join(root, ".codex", "codex-thread-merge", "context", "thread-1.md"),
   );
 });
 

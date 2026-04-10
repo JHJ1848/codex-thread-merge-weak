@@ -211,16 +211,17 @@ codex.cmd mcp get codex-thread-merge --json
 
 项目级产物目录约定：
 
-- `.codex/codex-thread-merge/MEMORY.md`：项目级权威记忆
-- `.codex/codex-thread-merge/memory/<session_id>.md`：会话级源数据文件（按会话拆分）
-- `.codex/codex-thread-merge/record.log`：merge/refresh 审计日志
+- `.codex/codex-thread-merge/CONTEXT.md`：项目级上下文汇总（本轮归并入口）
+- `.codex/codex-thread-merge/context/<session_id>.md`：会话级上下文文件（来源明细）
+- `.codex/codex-thread-merge/MEMORY.md`：项目级长期记忆（事实/决策）
+- `.codex/codex-thread-merge/record.log`：merge/refresh 审计日志（操作留痕）
 
 - `preview_project_threads`
-  - 按 `cwd` 发现候选会话
+  - 按 `cwd` 发现候选会话，只做预览，不直接归并
 - `merge_project_threads`
-  - 读取候选会话并归并为 canonical thread，更新 `.codex/codex-thread-merge/MEMORY.md`，并为每个候选会话写入 `.codex/codex-thread-merge/memory/<session_id>.md`，可选 compact 或重命名旧会话
+  - 在用户聊天确认选择后执行归并；生成 CONTEXT/MEMORY，创建 canonical thread，验证 resume 可见性，可选 compact 或重命名旧会话
 - `refresh_project_memory`
-  - 只刷新 `.codex/codex-thread-merge/MEMORY.md` 与会话级 `memory/<session_id>.md`，不创建 canonical thread
+  - 只刷新 CONTEXT/MEMORY 文件层，不创建 canonical thread
 
 ## 7. 调用示例
 
@@ -261,6 +262,14 @@ codex.cmd mcp get codex-thread-merge --json
 - `把这个项目的多个 Codex 会话合成主会话`
 - `同步当前项目的 canonical thread`
 
+推荐的人机交互流程（聊天选择，不做 CLI 勾选）：
+
+1. Agent 先调用 `preview_project_threads` 返回候选列表（带编号和 thread id）
+2. Agent 在聊天里询问你要合并哪些会话
+3. 你回复编号（如 `1,3,4`）或直接回复 thread id 集合
+4. Agent 再调用 `merge_project_threads` 执行归并
+5. Agent 返回 canonical thread、CONTEXT/MEMORY 产物路径、record.log 留痕信息
+
 ## 9. Windows UTF-8 提示
 
 如果 PowerShell 出现中文乱码，可先执行：
@@ -274,5 +283,8 @@ chcp 65001 > $null
 ## 10. 行为约定
 
 - 归并语义是“新建 canonical thread”，不是物理合并旧 thread
+- 默认先 preview，再由用户在聊天里选择编号或 thread id，之后才执行 merge
 - 默认会尝试 compact 旧 thread，并将旧 thread 名称追加 `[Merged]`
 - 如果部分 thread 读取失败，工具返回 `warnings[]`，其余线程继续处理
+- `merge_project_threads` 的成功定义包含：canonical thread 已创建且可在 `codex resume` 中恢复，不可恢复则不能静默算成功
+- 项目级产物职责分层：`CONTEXT.md/context/*.md` 负责当前批次上下文，`MEMORY.md` 负责长期记忆，`record.log` 负责审计留痕

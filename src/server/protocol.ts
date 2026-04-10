@@ -25,6 +25,23 @@ function maybeBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function parseRequiredStringArray(value: unknown, fieldName: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`"${fieldName}" is required and must be a non-empty string array.`);
+  }
+
+  const normalized = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  if (normalized.length === 0) {
+    throw new Error(`"${fieldName}" is required and must be a non-empty string array.`);
+  }
+
+  return Array.from(new Set(normalized));
+}
+
 export function parsePreviewProjectThreadsInput(
   args: unknown,
 ): PreviewProjectThreadsInput {
@@ -39,8 +56,13 @@ export function parseMergeProjectThreadsInput(
   args: unknown,
 ): MergeProjectThreadsInput {
   const obj = toObject(args);
+  const selectedThreadIds = parseRequiredStringArray(
+    obj.selectedThreadIds ?? obj.selected_thread_ids,
+    "selectedThreadIds",
+  );
   return {
     cwd: maybeString(obj.cwd),
+    selectedThreadIds,
     includeArchived: maybeBoolean(obj.include_archived),
     writeMemory: maybeBoolean(obj.write_memory),
     compactOldThreads: maybeBoolean(obj.compact_old_threads),

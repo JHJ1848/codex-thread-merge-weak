@@ -34,5 +34,7 @@ test("mergeThreadsToProjectState deduplicates facts and records conflicts", () =
   assert.match(merged.todos.join("\n"), /MEMORY/i);
   assert.match(merged.risksAndConflicts.join("\n"), /rename/);
   assert.ok(merged.sourceThreads.length === 2);
-  assert.match(buildCanonicalBootstrap(merged), /来源会话/);
+  const bootstrap = buildCanonicalBootstrap(merged);
+  assert.match(bootstrap, /来源会话/);
+  assert.doesNotMatch(bootstrap, /## 未完成任务/);
 });

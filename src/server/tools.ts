@@ -37,6 +37,10 @@ export function getToolDefinitions(): McpToolDefinition[] {
           .string()
           .optional()
           .describe("Optional project root override. Defaults to the server process cwd."),
+        selectedThreadIds: z
+          .array(z.string().min(1))
+          .min(1)
+          .describe("Required thread ids selected by user for this merge."),
         include_archived: z
           .boolean()
           .optional()
@@ -48,11 +52,11 @@ export function getToolDefinitions(): McpToolDefinition[] {
         compact_old_threads: z
           .boolean()
           .optional()
-          .describe("Whether merged source threads should be compacted."),
+          .describe("Whether merged source threads should be compacted. Defaults to false."),
         rename_old_threads: z
           .boolean()
           .optional()
-          .describe("Whether merged source threads should get [Merged] tag."),
+          .describe("Whether merged source threads should get [Merged] tag. Defaults to false."),
       },
     },
     {
